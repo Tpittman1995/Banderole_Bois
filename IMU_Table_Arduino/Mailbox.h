@@ -9,7 +9,7 @@
     If the amount of time specified above (in ms) is reached without a proper message being
     received, the mailbox state will divert into Loss of Communications.
 */
-#define _LOC_TIMEOUT_MS 20
+#define _LOC_TIMEOUT_MS 100
 
 class Mailbox
 {

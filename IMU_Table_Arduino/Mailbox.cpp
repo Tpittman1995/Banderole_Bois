@@ -21,9 +21,6 @@ Mailbox::~Mailbox()
 
 void Mailbox::runFrame_USB()
 {
-    //Update state machine
-    stMailboxState = updateStateMachine();
-
     //RX Message from master
     RX_USB();
 
@@ -37,6 +34,9 @@ void Mailbox::runFrame_USB()
 
     //Process RX message
     Process_RX();
+
+    //Update state machine
+    stMailboxState = updateStateMachine();
 
     //Create response message
     Process_TX();
@@ -56,7 +56,8 @@ void Mailbox::runFrame_USB()
 
 void Mailbox::RX_USB()
 {
-    if(Check_RX_Buf_Ready()) //If there is an unprocessed RX message in the buffer
+    //Check for unprocessed message in buffer or nonexistant serial event
+    if(Check_RX_Buf_Ready() || !Check_RX_Event())
         return;
     
     static unsigned long nAccumulate_ms = 0;
@@ -82,6 +83,7 @@ void Mailbox::RX_USB()
         }
 
         cMailboxStatus = Com_Code_T::eNack;
+        return;
     }
 
     induce_LOC(); //Else continue with Loss of Coms
