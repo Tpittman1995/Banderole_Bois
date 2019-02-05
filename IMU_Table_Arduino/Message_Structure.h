@@ -1,8 +1,6 @@
 #ifndef MESSAGE_STRUCTURE_H
 #define MESSAGE_STRUCTURE_H
 
-#include <string.h>
-
 #define _RX_MESSAGE_LENGTH 41
 #define _TX_MESSAGE_LENGTH 139
 
