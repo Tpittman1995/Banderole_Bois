@@ -15,15 +15,6 @@ public:
             bMotor_y_En     :   1,
             bMotor_z_En     :   1,
             bLOC            :   1;
-
-        RX_Status_T & operator = (char N)
-        {
-            bOperation_En = (N & 0x01);
-            bMotor_x_En = (N & 0x02);
-            bMotor_y_En = (N & 0x04);
-            bMotor_z_En = (N & 0x08);
-            bLOC        = (N & 0x10);
-        }
     };
 
     typedef struct RX_Message_Structure_Normal_T
@@ -56,9 +47,11 @@ public:
 
         //Data
         uint32_t nHashCompare;  //4 Bytes
-    }
+    };
 
     RX_Message();
+    RX_Message(RX_Message_Structure_Normal_T & stMessage);
+    RX_Message(RX_Message_Structure_Recovery_T & stMessage);
     ~RX_Message();
 
     //Public Functions
@@ -80,8 +73,6 @@ public:
     float           Torque_x_cmd()   const  { return fTorque_x_cmd; }
     float           Torque_y_cmd()   const  { return fTorque_x_cmd; }
     float           Torque_z_cmd()   const  { return fTorque_x_cmd; }
-
-    void decode_RX(char cBuff[]);
 
 private:
 
@@ -228,8 +219,6 @@ public:
     void    Set_DiffSteps_x(const float fDiff)      { fDiffSteps_x = fDiff; }
     void    Set_DiffSteps_y(const float fDiff)      { fDiffSteps_y = fDiff; }
     void    Set_DiffSteps_z(const float fDiff)      { fDiffSteps_z = fDiff; }
-
-    void encode_TX(char cBuff[]) const;
 
 private:
 

@@ -17,11 +17,7 @@ public:
 
     typedef enum class Com_Code_T
     {
-        eOK     =   0xA0,
-
-        //Acknowledge
-        eAck            =   0xAE,
-        eNack           =   0xAF,
+        eOK             =   0xA0,
 
         //Loss of Com phases
         eLOC_1          =   0xA1,
@@ -63,6 +59,7 @@ public:
 
     TX_Message  TX() const  { return mTX; }
     
+    void    Reset_TimeoutCounter()      { nTimeoutCounter = 0; }
     void    Set_Recovery()              { stNext_MailboxState = MailboxState_T::eRecovery; }
     void    Set_RX_Event()              { bRX_Event = true; }
     void    Set_RX_Ready()              { bRX_Ready = true; }
@@ -70,11 +67,7 @@ public:
     void    Set_TX(TX_Message & oTX)    { mTX = oTX; }
     void    Set_TX_Ready()              { bTX_Ready = true; }
 
-    bool Process_RX();
-    bool Process_TX();
     void runFrame_USB();
-    void RX_USB();
-    void TX_USB();
 
 private:
 
@@ -117,6 +110,18 @@ private:
             return false;
     }
 
+    bool Check_Timeout()
+    {
+        if(nTimeoutCounter >= _LOC_TIMEOUT_MS)
+        {
+            Reset_TimeoutCounter();
+            return true;
+        }
+        else
+            return false;
+        
+    }
+
     bool Check_TX_Buf_Ready() const { return bTX_Buf_Ready;}
 
     bool Check_TX_Ready()
@@ -131,26 +136,36 @@ private:
         
     }
 
-    bool checkCRC(char cData[], uint16_t nCRC);
+    bool Process_RX();
+    bool Process_TX();
+    bool checkCRC(Letter_T & lLetter);
+
     int RX_USB(Letter_T & lLetter);
-    uint16_t computeCRC(char cData[]);
+    uint16_t computeCRC(Letter_T & lLetter);
 
     MailboxState_T updateStateMachine();
 
-    void Set_RX_Buf_Ready(bool bStatus) { bRX_Buf_Ready = bStatus; }
-    void Set_TX_Buf_Ready(bool bStatus) { bTX_Buf_Ready = bStatus; }
+    void induce_LOC()                                   { bLOC_Induced = true; }
+    void Set_RX_Buf_Ready(const bool bStatus)           { bRX_Buf_Ready = bStatus; }
+    void Set_TX_Buf_Ready(const bool bStatus)           { bTX_Buf_Ready = bStatus; }
+    void Update_TimeoutCounter(unsigned long nMillis)   { nTimeoutCounter += nMillis; }
 
-    void induce_LOC();
+    void RX_USB();
+    void TX_USB();
     void TX_USB(Letter_T & lLetter);
+
+    //Private Operator Overloads
+    MailboxState_T & operator= (MailboxState_T & LHS, Com_Code_T & RHS);
 
     //Private Members
     bool bRX_Ready, bTX_Ready, bRX_Buf_Ready, bTX_Buf_Ready;        //Flags for message timing
-    bool bRX_Event;
+    bool bRX_Event, bLOC_Induced;
     char cRX_Buf[_RX_MESSAGE_LENGTH], cTX_Buf[_TX_MESSAGE_LENGTH];  //Char buffers for serial messaging
+    unsigned long nTimeoutCounter;
     uint8_t nTX_Message_Length;                                     //Dynamic message size depending on the mailbox status
 
-    Com_Code_T cMailboxStatus, cMasterStatus;
-    MailboxState_T stMailboxState, stNext_MailboxState;
+    Com_Code_T cMailboxStatus;
+    MailboxState_T stMailboxState, stNext_MailboxState, stMasterState;
     RX_Message mRX;     //RX Message structure
     TX_Message mTX;     //TX Message structure
 };
