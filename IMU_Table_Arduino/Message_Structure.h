@@ -10,6 +10,7 @@ class RX_Message
 {
 public:
 
+    //Structs
     typedef struct RX_Status_T
     {
         int bOperation_En   :   1,
@@ -50,12 +51,12 @@ public:
         uint32_t nHashCompare;  //4 Bytes
     };
 
+    //Public Functions
     RX_Message();
     RX_Message(RX_Message_Structure_Normal_T & stMessage);
     RX_Message(RX_Message_Structure_Recovery_T & stMessage);
     ~RX_Message();
 
-    //Public Functions
     unsigned long   SequenceNum() const { return nSequenceNum; }
     unsigned long   HashCompare() const { return nHashCompare; }
 
@@ -89,6 +90,7 @@ class TX_Message
 {
 public:
 
+    //Structs
     typedef struct TX_Status_T
     {
         typedef struct TX_Flags_T
@@ -102,7 +104,7 @@ public:
 
         int bOperating          :   1,
             bCommandInProgress  :   1,
-            bCommandComplete    :   1,
+            bCommandComplete    :   1;
 
         TX_Flags_T stFlags_x, stFlags_y, stFlags_z;
     };
@@ -155,10 +157,10 @@ public:
         uint32_t nHashCompare;                                      //4 Bytes
     };
 
+    //Public Functions
     TX_Message();
     ~TX_Message();
 
-    //Public Functions
     void    Set_SequenceNum(const unsigned long nNum)   { nSequenceNum = nNum; }
     void    Set_HashCompare(const unsigned long nNum)   { nHashCompare = nNum; }
 
@@ -220,11 +222,11 @@ public:
     void    Set_DiffSteps_y(const float fDiff)      { fDiffSteps_y = fDiff; }
     void    Set_DiffSteps_z(const float fDiff)      { fDiffSteps_z = fDiff; }
 
-private:
-
     //Private Functions
     void encode_MessageStructure(TX_Message_Structure_Normal_T & stTX);
     void encode_MessageStructure(TX_Message_Structure_Recovery_T & stTX);
+
+private:
 
     //Private Members
     unsigned long nSequenceNum, nHashCompare;

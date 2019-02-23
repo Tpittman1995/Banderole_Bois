@@ -95,7 +95,7 @@ int Mailbox::RX_USB(Letter_T & lLetter)
 {
     //Else continue to fill up the buffer
     int i = 0;
-    char cData[_RX_MESSAGE_LENGTH];
+    char cData[_RX_MESSAGE_LENGTH_NORMAL];
 
     //Grab letter headers
     while(Serial.available() && (i<2))
@@ -107,8 +107,8 @@ int Mailbox::RX_USB(Letter_T & lLetter)
     //If the header was read in correctly
     if(i == 2)
     {
-        lLetter.cMessageType = (Com_Code_T)(*(uint16_t *)(&cData[0]));
-        lLetter.nMessageLength = (*(uint16_t *)(&cData[1]));
+        lLetter.cMessageType = (uint8_t)cData[0];
+        lLetter.nMessageLength = (uint8_t)cData[1];
     }
     else
         return 0;
@@ -177,7 +177,104 @@ CRC_Bitfield_T Mailbox::computeCRC(char * cStr, uint16_t nPassDown, int nLen)
 
 MailboxState_T Mailbox::updateStateMachine()
 {
+    switch(stNext_MailboxState)
+    {
+    case MailboxState_T::eStart:
 
+        //Once a TX message is ready, shift to normal state
+        if(bTX_Ready)
+            return MailboxState_T::eNormal;
+
+        //Otherwise remain in startup
+        return MailboxState_T::eStart;
+
+        break;
+
+    case MailboxState_T::eNormal:
+
+        //If loss of coms is induced, shift to LOC_1
+        if(bLOC_Induced)
+            return MailboxState_T::eLOC_1;
+
+        //If the master device is still in LOC, shift to LOC_1
+        if(is_LOC(stMasterState))
+            return MailboxState_T::eLOC_1;
+
+        //Otherwise continue normal operations
+        return MailboxState_T::eNormal;
+
+        break;
+
+    case MailboxState_T::eLOC_1:
+
+        //If loss of coms is induced, shift to LOC_2
+        if(bLOC_Induced)
+            return MailboxState_T::eLOC_2;
+        
+        if(is_LOC(stMasterState))                           //If the master device is still in LOC
+            return MailboxState_T::eLOC_2;                      //Shift to LOC_2
+        else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
+            return MailboxState_T::eNormal;                     //Shift to normal state as well
+
+        //Otherwise remain in LOC_1
+        return MailboxState_T::eLOC_1
+
+        break;
+
+    case MailboxState_T::eLOC_2:
+
+        //If loss of coms is induced, shift to LOC_3
+        if(bLOC_Induced)
+            return MailboxState_T::eLOC_3;
+
+        if(is_LOC(stMasterState))                           //If the master device is still in LOC
+            return MailboxState_T::eLOC_3;                      //Shift to LOC_3
+        else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
+            return MailboxState_T::eNormal;                     //Shift to normal state as well
+
+        //Otherwise remain in LOC_2
+        return MailboxState_T::eLOC_2
+
+        break;
+
+    case MailboxState_T::eLOC_3:
+
+        //If loss of coms is induced, shift to LOC Recovery
+        if(bLOC_Induced)
+            return MailboxState_T::eRecovery_LOC;
+
+        if(is_LOC(stMasterState))                           //If the master device is still in LOC
+            return MailboxState_T::eRecovery_LOC;               //Shift to Recovery_LOC
+        else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
+            return MailboxState_T::eNormal;                     //Shift to normal state as well
+
+        //Otherwise remain in LOC_3
+        return MailboxState_T::eLOC_3
+
+        break;
+
+    case MailboxState_T::eRecovery_LOC:
+
+        //Remain in Recovery_LOC until the main process in loop() sets the recovery flag
+        return MailboxState_T::eRecovery_LOC;
+
+        break;
+
+    case MailboxState_T::eRecovery:
+
+        if(stMasterState == MailboxState_T::eNormal)    //If the master device is back to normal operations
+            return MailboxState_T::eNormal;                 //Shift to normal state as well
+        else                                            //Else
+            return MailboxState_T::eRecovery;               //Remain in recovery
+
+        break;
+    
+    default:
+
+        //Should not be here
+        //Set state to eRecovery
+        return MailboxState_T::eRecovery;
+    }
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -210,6 +307,10 @@ void Mailbox::Process_RX()
 
         //Load into RX Message
         mRX = RX_Message(stRX_msg);
+
+        if(mRX.SequenceNum() != mTX.SequenceNum())
+            induce_LOC();
+
         break;
 
     case MailboxState_T::eLOC_1:
@@ -241,7 +342,6 @@ void Mailbox::Process_RX()
         
         //Do nothing but return before clearing the RX_Buf_Ready flag
         return;
-        break;
     }
 
 
@@ -351,11 +451,11 @@ void Mailbox::RX_USB()
         //Update the timer
         tCurrentCall = millis();
         Update_TimeoutCounter(tCurrentCall - tPrevCall);
-        nPrevCall = tCurrentCall;
+        tPrevCall = tCurrentCall;
         
         int nRX_Length = RX_USB(lLetter); //Record the length of the string that was read in
 
-        if(lLetter.nMessageLength == nRX_Length) //If the message reports its correct length
+        if(nRX_Length && lLetter.nMessageLength == nRX_Length) //If the message reports its correct length
         {
             if(checkCRC(lLetter)) //If the CRC returns no errors
             {
@@ -369,6 +469,9 @@ void Mailbox::RX_USB()
                 
                 memcpy(cRX_Buf, lLetter.cData, nRX_Message_Length);     //Copy the message to the RX buffer
                 Set_RX_Buf_Ready(true);                                 //Set bRX_Buf_ready to pend Process_RX()
+                
+                Reset_TimeoutCounter();
+                
                 return;
             }        
         }
@@ -425,7 +528,7 @@ void Mailbox::TX_USB(Letter_T & lLetter)
 {
     Serial.write(lLetter.cMessageType);
     Serial.write(lLetter.nMessageLength);
-    Serial.write(lLetter.cData, lLetter.nMessageLength);
+    Serial.write(lLetter.cData);
     Serial.write(lLetter.nCRC);
     Serial.write(lLetter.nStopByte);
 }

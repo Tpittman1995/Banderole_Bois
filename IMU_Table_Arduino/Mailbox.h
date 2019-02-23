@@ -20,6 +20,7 @@ class Mailbox
 {
 public:
 
+    //Structs
     typedef enum class MailboxState_T
     {
         eNormal         =   0x10,
@@ -35,12 +36,12 @@ public:
 
         //Startup phase
         eStart          =   0xAA
-    };
+    };    
 
+    //Public Functions
     Mailbox();
     ~Mailbox();
 
-    //Public Functions
     bool RX_Ready() const   { return bRX_Ready; }
     bool TX_Ready() const   { return bTX_Ready; }
 
@@ -92,6 +93,17 @@ private:
     };
 
     //Private Functions
+    bool is_LOC(MailboxState_T stState)
+    {
+        if(stState == MailboxState_T::eLOC_1 ||
+           stState == MailboxState_T::eLOC_2 ||
+           stState == MailboxState_T::eLOC_3 ||
+           stState == MailboxState_T::eRecovery_LOC)
+            return true;
+        else
+            return false;
+    }
+
     bool RX_Buf_Ready() const { return bRX_Buf_Ready; }
 
     bool Check_RX_Event()
@@ -122,8 +134,8 @@ private:
     bool checkCRC(Letter_T & lLetter);
 
     int RX_USB(Letter_T & lLetter);
-    
-    CRC_Bitfield_T computeCRC(Letter_T & lLetter);
+    uint16_t computeCRC(Letter_T & lLetter);
+
     CRC_Bitfield_T computeCRC(char * cStr, uint16_t nPassDown, int nLen);
 
     MailboxState_T updateStateMachine();
