@@ -1,6 +1,10 @@
 #include "Mailbox.h"
 
 //  Mailbox -- Public Functions ///////////////////////////////////////////////////////////////////
+
+/*-------------------------------------------------------------------------------------------------
+    Constructor -- Default
+*/
 Mailbox::Mailbox()
 {
     bRX_Ready = false;
@@ -8,17 +12,29 @@ Mailbox::Mailbox()
     bRX_Buf_Ready = false;
     bTX_Buf_Ready = false;
 
-    cMailboxStatus = Com_Code_T::eStart;
-    stMailboxState = stNext_MailboxState = MailboxState_T::eNormal;
+    stMailboxState = stNext_MailboxState = MailboxState_T::eStart;
     nRX_Message_Length = _RX_MESSAGE_LENGTH;
     nTX_Message_Length = _TX_MESSAGE_LENGTH;
 }
 
+/*-------------------------------------------------------------------------------------------------
+    Destructor -- Default
+*/
 Mailbox::~Mailbox()
 {
 
 }
 
+/*-------------------------------------------------------------------------------------------------
+    runFrame_USB
+
+    Runs a single process frame which executes the mailbox's primary functions through the Arduino's
+    USB serial port.
+
+    INPUT   --  NONE
+
+    Output (void)
+*/
 void Mailbox::runFrame_USB()
 {
     //RX Message from master
@@ -39,53 +55,46 @@ void Mailbox::runFrame_USB()
 
 //  Mailbox -- Private Functions //////////////////////////////////////////////////////////////////
 
-bool Process_RX()
+bool Mailbox::checkCRC(Letter_T & lLetter)
 {
-    //Check to see if the RX buffer is ready for processing
-    if(!Check_RX_Buf_Ready())
+    //Create a string with the length of the letter minus the stop byte
+    int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 1;
+    char cData[nStr_Len];
+
+    //Copy over the letter header
+    cData[0] = lLetter.cMessageType;
+    cData[1] = lLetter.nMessageLength;
+
+    //Copy over the message
+    memcpy(&cData[2], lLetter.cData, strlen(lLetter.cData));
+    
+    //Copy over the CRC
+    cData[2+nStr_Len] = HI_16(lLetter.nCRC);
+    cData[3+nStr_Len] = LO_16(lLetter.nCRC);
+
+    if(!computeCRC(cData, *((uint16_t *)cData), nStr_Len);
+        return true;
+    else
         return false;
     
-    //Begin parsing the buffered message based on the master's message code
-
-    switch(stMasterState)
-    {
-    case MailboxState_T::eNormal:
-
-        //Create message structure
-        RX_Message_Structure_Normal_T * stRX_msg = (RX_Message_Structure_Normal_T *)cRX_Buf;
-
-        mRX = RX_Message(stRX_msg);
-        break;
-
-    case MailboxState_T::eLOC_1:
-
-        break;
-
-    case MailboxState_T::eLOC2:
-
-        break;
-
-    case MailboxState_T::eLOC3:
-
-        break;
-
-    case MailboxState_T::eRecovery_LOC:
-
-        break;
-
-    case MailboxState_T::eRecovery:
-
-        break;
-
-    default:
-        break;
-    }
 }
 
+/*-------------------------------------------------------------------------------------------------
+    RX_USB
+
+    Secondary subprocess for receiving a command message from the master device through the Arduino's 
+    USB serial port.
+
+    INPUT (Letter_T &)  --  lLetter
+        An empty letter structure ready to be populated. Passed by reference.
+
+    OUTPUT (int)
+        Returns the number of characters that was read in through the serial event.
+*/
 int Mailbox::RX_USB(Letter_T & lLetter)
 {
     //Else continue to fill up the buffer
-    int i = 0, j = 0;
+    int i = 0;
     char cData[_RX_MESSAGE_LENGTH];
 
     //Grab letter headers
@@ -93,47 +102,244 @@ int Mailbox::RX_USB(Letter_T & lLetter)
     {
         cData[i] = Serial.read();
         i++;
-        j++;
     }
 
-    if(j == 2)
+    //If the header was read in correctly
+    if(i == 2)
     {
         lLetter.cMessageType = (Com_Code_T)(*(uint16_t *)(&cData[0]));
         lLetter.nMessageLength = (*(uint16_t *)(&cData[1]));
     }
     else
-        return j;
-    
+        return 0;
 
-    //Grab message data
-    i = 0;
-
-    while(Serial.available() && (i < lLetter.nMessageLength))
+    //Read in cData and the tail of the letter
+    while(Serial.available() && (i < lLetter.nMessageLength) && cData[i] != lLetter.nStopByte)
     {
         cData[i] = Serial.read();
         i++;
-        j++;
     }
 
-    memcpy(lLetter.cData, cData, i);
+    memcpy(lLetter.cData, &cData[2], nRX_Message_Length);   //Copy cData to the letter's cData
+    lLetter.nCRC = (*((uint16_t *)(&cData[i-3])) & 0xEFFF); //Load in the 15 bit CRC
 
-    //Grab the CRC and stop bit
-    i = 0;
-
-    while((cData[i] != 0xE7) && (i < 4))
-    {
-        cData[i] = Serial.read();
-        i++;
-        j++;
-    }
-
-    return j+1;
+    return i;
 }
 
+//TODO
+uint16_t Mailbox::computeCRC(Letter_T & lLetter)
+{
+    //Create a string with the length of the letter minus the stop bytes
+    int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 1;
+    char cData[nStr_Len];
+
+    //Copy over the letter header
+    cData[0] = lLetter.cMessageType;
+    cData[1] = lLetter.nMessageLength;
+
+    //Copy over the message
+    memcpy(&cData[2], lLetter.cData, strlen(lLetter.cData));
+
+    //The remaining 2 bytes will remain 0, as we concatenate 15 0 bits to the end of the string
+    //Compute CRC with the first 16 bits of cData as the first numerator
+    CRC_Bitfield_T nBitfield = computeCRC(cData, *((uint16_t *)(cData)), nSTr_Len);
+
+    return nBitfield.nNum;
+}
+
+CRC_Bitfield_T Mailbox::computeCRC(char * cStr, uint16_t nPassDown, int nLen)
+{
+    int nPos = 0;
+    uint16_t nProduct, nNumerator = nPassDown, nDenominator;
+
+    //Iterate through string
+    while(nPos <= nLen)
+    {
+        if(!(nNumerator & 0x8000))  //If the first bit of the passed down value is 0
+            nDenominator - 0;           //Set the second value to 0
+        else                        //Else
+            nDenominator = 0xAAAA;      //Set it to the divisor
+
+        //Calculate product for the current 16 bit window
+        nNumerator = (nPassdown << 1);                                      //Shift the passdown to the right by 1
+        nNumerator += ((uint16_t *)(cStr+(nPos/8)) & (0x80 >> (nPos % 8))); //Add the next bit in the string
+        nNumerator ^ nDenominator;                                          //Xor the numerator and denominator   
+    
+        nPos++;
+    }
+
+    //Create the CRC bitfield and load the product into it
+    CRC_Bitfield_T nCRC;
+    CRC.nNum = nNumerator & 0x7FFF;
+
+    return nCRC;
+}
+
+MailboxState_T Mailbox::updateStateMachine()
+{
+
+}
+
+/*-------------------------------------------------------------------------------------------------
+    Process_RX
+
+    Subprocess which processes the command message that was most recently received. Will not execute 
+    unless one condition is met:
+        
+        1.  bRX_Buf_ready is set, which means cRX_Buf is populated with a full message ready for
+            processing
+
+    INPUT   --  NONE
+
+    OUTPUT (void)
+*/
+void Mailbox::Process_RX()
+{
+    //Check to see if the RX buffer is ready for processing and there is no untouched message
+    if(!RX_Buf_Ready())
+        return;
+    
+    //Begin parsing the buffered message based on the master's mailbox state, as that will
+    //determine the type of message that was received
+    switch(stMasterState)
+    {
+    case MailboxState_T::eNormal:
+
+        //Create message structure
+        RX_Message_Structure_Normal_T * stRX_msg = (RX_Message_Structure_Normal_T *)cRX_Buf;
+
+        //Load into RX Message
+        mRX = RX_Message(stRX_msg);
+        break;
+
+    case MailboxState_T::eLOC_1:
+
+        //Continue down  
+
+    case MailboxState_T::eLOC2:
+
+        //Contnue down
+
+    case MailboxState_T::eLOC3:
+
+        //Induce LOC and continue down
+        induce_LOC();
+
+    case MailboxState_T::eRecovery_LOC:
+
+    case MailboxState_T::eRecovery:
+
+        //Create message structure
+        RX_Message_Structure_Recovery_T * stRXmsg = (RX_Message_Structure_Recovery_T *)cRX_Buf;
+
+        //Load into RX message
+        mRX = RX_Message(stRX_msg);
+
+        break;
+
+    default:
+        
+        //Do nothing but return before clearing the RX_Buf_Ready flag
+        return;
+        break;
+    }
+
+
+    Set_RX_Buf_Ready(false);    //Clear bRX_Buf_Ready as the buffer's message has now been processed
+    Set_RX_Ready();             //Set bRX_Ready to signal loop() that a new message has been 
+                                //  processed
+}
+
+/*-------------------------------------------------------------------------------------------------
+    Process_TX
+
+    Subprocess which processes the TX_Message received from loop(). Will not execute unless
+    one condition is met:
+        
+        1.  bTX_Ready is set, which means that loop() has updated the mailbox with a new TX
+            message.
+
+    INPUT   --  NONE
+
+    OUTPUT (void)
+*/
+void Mailbox::Process_TX()
+{
+    //Check to see if a TX message is ready to be processed
+    if(!TX_Ready())
+        return;
+
+    //Populate the message into cTX_Buf according to the current mailbox state
+    switch(stMailboxState)
+    {
+    case MailboxState_T::eNormal:
+
+        //Create message structure
+        TX_Message_Structure_Normal_T * stTX_msg;
+        mTX.encode_MessageStructure(*stTX_msg);
+
+        //Copy to the TX buffer
+        memcpy(cTX_Buf, stTX_msg, _TX_MESSAGE_LENGTH_NORMAL);
+
+        break;
+
+    case MailboxState_T::eLOC_1:
+
+        //Continue down
+
+    case MailboxState_T::eLOC2:
+
+        //Continue down
+
+    case MailboxState_T::eLOC3:
+
+        //Continue down
+
+    case MailboxState_T::eRecovery_LOC:
+
+        //Continue down
+
+    case MailboxState_T::eRecovery:
+
+        //Copy hash compare from RX message
+        mTX.Set_HashCompare(mRX.HashCompare());
+
+        //Create message structure
+        TX_Message_Structure_Recovery_T * stTXmsg;
+        mTX.encode_MessageStructure(*stTX_msg);
+
+        //Copy to the TX buffer
+        memcpy(cTX_Buf, stTX_msg, _TX_MESSAGE_LENGTH_RECOVERY);
+
+        break;
+
+    default:
+        
+        //Do nothing but return before clearing the TX_Buf_Ready flag
+        return;
+        break;
+    }
+
+    Set_TX_Buf_Ready(true); //Set bTX_Buf_Ready to pend the TX subprocess
+    Clear_TX_Ready();       //Clear bTX_Ready as the message has now been processed
+}
+
+/*-------------------------------------------------------------------------------------------------
+    RX_USB
+
+    Primary subprocess for receiving a message from the master device over the Arduino's USB port.
+    Will not execute unless one condition is met:
+
+        1.  bRX_Event is set, which means that a serial event has been recorded.
+
+    INPUT   --  NONE
+
+    OUPUT (void)
+*/
 void Mailbox::RX_USB()
 {
-    //Check for unprocessed message in buffer or nonexistant serial event
-    if(Check_RX_Buf_Ready() || !Check_RX_Event())
+    //Check for nonexistant serial event
+    if(!Check_RX_Event())
         return;
     
     unsigned long tCurrentCall;
@@ -142,44 +348,79 @@ void Mailbox::RX_USB()
 
     if(Check_Timeout()) //If a timeout has occured
     {
-        //Update the timer and send message
+        //Update the timer
         tCurrentCall = millis();
         Update_TimeoutCounter(tCurrentCall - tPrevCall);
         nPrevCall = tCurrentCall;
         
-        int nRX_Length = RX_USB(lLetter);
+        int nRX_Length = RX_USB(lLetter); //Record the length of the string that was read in
 
         if(lLetter.nMessageLength == nRX_Length) //If the message reports its correct length
         {
             if(checkCRC(lLetter)) //If the CRC returns no errors
             {
-                stMasterStatus = lLetter.cMessageType
-                memcpy(cRX_Buf, lLetter.cData, nRX_Message_Length); //Copy the message to the RX buffer
-                Set_RX_Buf_Ready(true);                             //Flag the RX buffer as updated
+                stMasterState = (MailboxState_T)lLetter.cMessageType   //Set the master's mailbox status to the message code
+                
+                //Set the expected RX message length
+                if((stMasterState == MailboxState_T::eNormal) || (stMasterState == MailboxState_T::eStart))
+                    nRX_Message_Length = _RX_MESSAGE_LENGTH_NORMAL;
+                else
+                    nRX_Message_Length = _RX_MESSAGE_LENGTH_RECOVERY;                
+                
+                memcpy(cRX_Buf, lLetter.cData, nRX_Message_Length);     //Copy the message to the RX buffer
+                Set_RX_Buf_Ready(true);                                 //Set bRX_Buf_ready to pend Process_RX()
                 return;
             }        
         }
     }
     
-    induce_LOC(); //Move into Loss of Coms
+    induce_LOC(); //FLag Loss of Coms
 }
 
+/*-------------------------------------------------------------------------------------------------
+    TX_USB
+
+    Primary subprocess for transmitting a response message to the master device over the Arduino's
+    USB port. Will not execute unless one condition is met:
+
+        1.  bTX_Buf_Ready is set, which means that cTX_Buf has been populated with a processed TX
+            message
+    
+    INPUT   --  NONE
+
+    OUPUT (void)
+*/
 void Mailbox::TX_USB()
 {
-    if(Check_TX_Buf_Ready()) //If there is a not a processed message that is ready to send
+    //Check for a processed message within the TX buffer
+    if(!TX_Buf_Ready())
         return;
+
+    //Clear bTX_Buf_Ready to show that the message is being sent
+    Set_TX_Buf_Ready(false);
     
-    //Else create and send a letter
+    //Create and send a letter
     Letter_T lLetter;
 
     lLetter.cMessageType = cMailboxStatus;
-    lLetter.nMessageLength = nTX_Message_Length;
+    lLetter.nMessageLength = nTX_Message_Length + sizeof(lLetter) - sizeof(lLetter.cData);
     lLetter.cData = cTX_Buf;
-    lLetter.nCRC = computeCRC(lLetter);
+    lLetter.nCRC = computeCRC(lLetter) & 0x7FFF;
 
     TX_USB(lLetter);
 }
 
+/*-------------------------------------------------------------------------------------------------
+    TX_USB
+
+    Secondary subprocess for transmitting a response message to the master device over the Arduino's
+    USB port.
+
+    INPUT (Letter_T)  --  lLetter
+        A populated letter structure that needs to be transmitted. Passed by reference.
+
+    OUPUT (void)
+*/
 void Mailbox::TX_USB(Letter_T & lLetter)
 {
     Serial.write(lLetter.cMessageType);
@@ -187,15 +428,4 @@ void Mailbox::TX_USB(Letter_T & lLetter)
     Serial.write(lLetter.cData, lLetter.nMessageLength);
     Serial.write(lLetter.nCRC);
     Serial.write(lLetter.nStopByte);
-}
-
-// Private Operator Overloads /////////////////////////////////////////////////////////////////////
-MailboxState_T & operator= (MailboxState_T & LHS, Com_Code_T & RHS)
-{
-    if(RHS == Com_Code_T::eStart)
-        LHS = MailboxState_T::eNormal;
-    else
-        LHS = (MailboxState_T)((int)RHS);
-    
-    return LHS;
 }

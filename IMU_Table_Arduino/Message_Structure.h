@@ -1,8 +1,10 @@
 #ifndef MESSAGE_STRUCTURE_H
 #define MESSAGE_STRUCTURE_H
 
-#define _RX_MESSAGE_LENGTH 41
-#define _TX_MESSAGE_LENGTH 139
+#define _RX_MESSAGE_LENGTH_NORMAL   sizeof(RX_Message_Structure_Normal_T)
+#define _RX_MESSAGE_LENGTH_RECOVERY sizeof(RX_Message_Structure_Recovery_T)
+#define _TX_MESSAGE_LENGTH_NORMAL   sizeof(TX_Message_Structure_Normal_T)
+#define _TX_MESSAGE_LENGTH_RECOVERY sizeof(TX_Message_Structure_Recovery_T)
 
 class RX_Message
 {
@@ -14,7 +16,6 @@ public:
             bMotor_x_En     :   1,
             bMotor_y_En     :   1,
             bMotor_z_En     :   1,
-            bLOC            :   1;
     };
 
     typedef struct RX_Message_Structure_Normal_T
@@ -26,7 +27,7 @@ public:
 
         //Header
         uint32_t nSequenceNum;  //4 Bytes
-        RX_Status_T stStatus;   //1 Byte (5 bits)
+        RX_Status_T stStatus;   //1 Byte (4 bits)
 
         //Data
         float fPosition_x_cmd, fPosition_y_cmd, fPosition_z_cmd;    //12 Bytes (4 each)
@@ -102,7 +103,6 @@ public:
         int bOperating          :   1,
             bCommandInProgress  :   1,
             bCommandComplete    :   1,
-            bLOC                :   1;
 
         TX_Flags_T stFlags_x, stFlags_y, stFlags_z;
     };
@@ -221,6 +221,10 @@ public:
     void    Set_DiffSteps_z(const float fDiff)      { fDiffSteps_z = fDiff; }
 
 private:
+
+    //Private Functions
+    void encode_MessageStructure(TX_Message_Structure_Normal_T & stTX);
+    void encode_MessageStructure(TX_Message_Structure_Recovery_T & stTX);
 
     //Private Members
     unsigned long nSequenceNum, nHashCompare;

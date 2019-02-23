@@ -4,6 +4,11 @@
 #include "Arduino.h"
 #include "Message_Structure.h"
 
+#define HI_16(x)    ((x) & 0xFF00)
+#define LO_16(x)    ((x) & 0x00FF)
+#define HI_32(x)    ((x) & 0xFFFF0000)
+#define LO_32(x)    ((x) & 0x0000FFFF)
+
 /* The timeout threshold for communications in milliseconds ///////////////////////////////////////
 
     If the amount of time specified above (in ms) is reached without a proper message being
@@ -14,23 +19,6 @@
 class Mailbox
 {
 public:
-
-    typedef enum class Com_Code_T
-    {
-        eOK             =   0xA0,
-
-        //Loss of Com phases
-        eLOC_1          =   0xA1,
-        eLOC_2          =   0xA2,
-        eLOC_3          =   0xA3,
-
-        //Recovery phases
-        eRecovery       =   0xA8,
-        eRecovery_LOC   =   0xA9,
-
-        //Startup phase
-        eStart          =   0xAA
-    };
 
     typedef enum class MailboxState_T
     {
@@ -43,29 +31,41 @@ public:
 
         //Recovery states
         eRecovery       =   0x18,
-        eRecovery_LOC   =   0x19
+        eRecovery_LOC   =   0x19,
+
+        //Startup phase
+        eStart          =   0xAA
     };
 
     Mailbox();
     ~Mailbox();
 
     //Public Functions
-    bool    RX_Ready() const    { return bRX_Ready; }
-    bool    TX_Ready() const    { return bTX_Ready; }
+    bool RX_Ready() const   { return bRX_Ready; }
+    bool TX_Ready() const   { return bTX_Ready; }
 
-    MailboxState_T  MailboxState() const    { return stMailboxState; }
+    MailboxState_T MailboxState() const { return stMailboxState; }
 
-    RX_Message  RX() const  { return mRX; }
+    RX_Message & RX() const  
+    {
+        //Clear RX_Ready to show that the message has been seen
+        bRX_Ready = false;
+        return mRX; 
+    }
 
-    TX_Message  TX() const  { return mTX; }
-    
-    void    Reset_TimeoutCounter()      { nTimeoutCounter = 0; }
-    void    Set_Recovery()              { stNext_MailboxState = MailboxState_T::eRecovery; }
-    void    Set_RX_Event()              { bRX_Event = true; }
-    void    Set_RX_Ready()              { bRX_Ready = true; }
-    void    Set_RX(RX_Message & oRX)    { mRX = oRX; }
-    void    Set_TX(TX_Message & oTX)    { mTX = oTX; }
-    void    Set_TX_Ready()              { bTX_Ready = true; }
+    TX_Message & TX() const { return mTX; }
+
+    void Reset_TimeoutCounter()     { nTimeoutCounter = 0; }
+    void Set_Recovery()             { stNext_MailboxState = MailboxState_T::eRecovery; }
+    void Set_RX(RX_Message & oRX)   { mRX = oRX; }
+    void Set_RX_Event()             { bRX_Event = true; }
+
+    void Set_TX(TX_Message & oTX)    
+    {
+        //Set TX_Ready to true to show that a new message has been set
+        bTX_Ready = true;
+        mTX = oTX;
+    }
 
     void runFrame_USB();
 
@@ -79,31 +79,26 @@ private:
 
         //Data
         char * cData;
-        uint16_t nCRC;
+        uint16_t nCRC : 15;
 
         //Stop byte
         const uint8_t nStopByte = 0xE7;
     };
 
+    typedef struct CRC_Bitfield_T
+    {
+        //Contains 17 bit value for CRC computations
+        uint16_t nNum : 15;
+    };
+
     //Private Functions
-    bool Check_RX_Buf_Ready() const { return bRX_Buf_Ready; }
+    bool RX_Buf_Ready() const { return bRX_Buf_Ready; }
 
     bool Check_RX_Event()
     {
         if(bRX_Event)
         {
             bRX_Event = false;
-            return true;
-        }
-        else
-            return false;
-    }
-
-    bool Check_RX_Ready()
-    {
-        if(bRX_Ready)
-        {
-            bRX_Ready = false;
             return true;
         }
         else
@@ -122,49 +117,39 @@ private:
         
     }
 
-    bool Check_TX_Buf_Ready() const { return bTX_Buf_Ready;}
+    bool TX_Buf_Ready() const { return bTX_Buf_Ready;}
 
-    bool Check_TX_Ready()
-    {
-        if(bTX_Ready)
-        {
-            bTX_Ready = false;
-            return true;
-        }
-        else
-            return false;
-        
-    }
-
-    bool Process_RX();
-    bool Process_TX();
     bool checkCRC(Letter_T & lLetter);
 
     int RX_USB(Letter_T & lLetter);
-    uint16_t computeCRC(Letter_T & lLetter);
+    
+    CRC_Bitfield_T computeCRC(Letter_T & lLetter);
+    CRC_Bitfield_T computeCRC(char * cStr, uint16_t nPassDown, int nLen);
 
     MailboxState_T updateStateMachine();
 
+    void Clear_TX_Ready()                               { bTX_Ready = false; }
     void induce_LOC()                                   { bLOC_Induced = true; }
+    void Set_RX_Ready()                                 { bRX_Ready = true; }
     void Set_RX_Buf_Ready(const bool bStatus)           { bRX_Buf_Ready = bStatus; }
     void Set_TX_Buf_Ready(const bool bStatus)           { bTX_Buf_Ready = bStatus; }
     void Update_TimeoutCounter(unsigned long nMillis)   { nTimeoutCounter += nMillis; }
 
+    void Process_RX();
+    void Process_TX();
     void RX_USB();
     void TX_USB();
     void TX_USB(Letter_T & lLetter);
 
     //Private Operator Overloads
-    MailboxState_T & operator= (MailboxState_T & LHS, Com_Code_T & RHS);
 
     //Private Members
     bool bRX_Ready, bTX_Ready, bRX_Buf_Ready, bTX_Buf_Ready;        //Flags for message timing
     bool bRX_Event, bLOC_Induced;
     char cRX_Buf[_RX_MESSAGE_LENGTH], cTX_Buf[_TX_MESSAGE_LENGTH];  //Char buffers for serial messaging
     unsigned long nTimeoutCounter;
-    uint8_t nTX_Message_Length;                                     //Dynamic message size depending on the mailbox status
+    uint8_t nTX_Message_Length, nRX_Message_Length;                 //Dynamic message size depending on the mailbox status
 
-    Com_Code_T cMailboxStatus;
     MailboxState_T stMailboxState, stNext_MailboxState, stMasterState;
     RX_Message mRX;     //RX Message structure
     TX_Message mTX;     //TX Message structure
