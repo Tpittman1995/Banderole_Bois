@@ -12,7 +12,7 @@ Mailbox::Mailbox()
     bRX_Buf_Ready = false;
     bTX_Buf_Ready = false;
 
-    stMailboxState = stNext_MailboxState = MailboxState_T::eStart;
+    stMailboxState = MailboxState_T::eStart;
     nRX_Message_Length = _RX_MESSAGE_LENGTH;
     nTX_Message_Length = _TX_MESSAGE_LENGTH;
 }
@@ -55,6 +55,19 @@ void Mailbox::runFrame_USB()
 
 //  Mailbox -- Private Functions //////////////////////////////////////////////////////////////////
 
+/*-------------------------------------------------------------------------------------------------
+    checkCRC
+
+    Runs the provided letter through a 16 bit hashing process to determine whether the CRC value
+    appended to the end is valid. This ensures that there are no errors in the letter as it was
+    received.
+
+    INPUT (Letter_T &)  --  lLetter
+        Populated with a full message. Passed by reference.
+
+    OUTPUT (bool)
+        Returns true if the CRC is correct. Returns false if not.
+*/
 bool Mailbox::checkCRC(Letter_T & lLetter)
 {
     //Create a string with the length of the letter minus the stop byte
@@ -120,17 +133,29 @@ int Mailbox::RX_USB(Letter_T & lLetter)
         i++;
     }
 
-    memcpy(lLetter.cData, &cData[2], nRX_Message_Length);   //Copy cData to the letter's cData
-    lLetter.nCRC = (*((uint16_t *)(&cData[i-3])) & 0xEFFF); //Load in the 15 bit CRC
+    memcpy(lLetter.cData, &cData[2], nRX_Message_Length);       //Copy cData to the letter's cData
+    lLetter.nCRC = (MERGE_16(cData[i-3], cData[i-2]) & 0x7FFF); //Load in the 15 bit CRC
 
     return i;
 }
 
-//TODO
+/*-------------------------------------------------------------------------------------------------
+    computeCRC
+
+    Runs the provided letter through a 16 bit hashing process to find the 15 bit CRC value for the
+    message. This CRC value is then sent along with the message and re-evaluated by the receiver to
+    check for errors in the data transfer.
+
+    INPUT (Letter_T &)  --  lLetter
+        Populated with a full message. Passed by reference.
+
+    OUTPUT (uint16_t)
+        Returns the 15 bit CRC that is generated in the form of a 16 bit integer.
+*/
 uint16_t Mailbox::computeCRC(Letter_T & lLetter)
 {
-    //Create a string with the length of the letter minus the stop bytes
-    int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 1;
+    //Create a string with the length of the letter minus the cData pointer and stop byte
+    int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 2;
     char cData[nStr_Len];
 
     //Copy over the letter header
@@ -141,16 +166,29 @@ uint16_t Mailbox::computeCRC(Letter_T & lLetter)
     memcpy(&cData[2], lLetter.cData, strlen(lLetter.cData));
 
     //The remaining 2 bytes will remain 0, as we concatenate 15 0 bits to the end of the string
-    //Compute CRC with the first 16 bits of cData as the first numerator
-    CRC_Bitfield_T nBitfield = computeCRC(cData, *((uint16_t *)(cData)), nSTr_Len);
-
-    return nBitfield.nNum;
+    //Compute CRC
+    return computeCRC(cData, nStr_Len) & 0x7FFF;
 }
 
-CRC_Bitfield_T Mailbox::computeCRC(char * cStr, uint16_t nPassDown, int nLen)
+/*-------------------------------------------------------------------------------------------------
+    computeCRC
+
+    Computes the CRC of a C string by hashing subsequenct 16 bit words and shifting the divisor by
+    1 bit to the right every Xor operation.
+
+    INPUT (char *)  --  cStr
+        The C string for the CRC to be generated off of.
+
+    INPUT (int)     --  nLen
+        The length of the C string in bits.
+
+    OUTPUT (uint16_t)
+        Returns the 15 bit CRC that is generated in the form of a 16 bit integer.
+*/
+uint16_t Mailbox::computeCRC(char * cStr, int nLen)
 {
     int nPos = 0;
-    uint16_t nProduct, nNumerator = nPassDown, nDenominator;
+    uint16_t nProduct, nNumerator = MERGE_16(*cData, *(cData+1)), nDenominator;
 
     //Iterate through string
     while(nPos <= nLen)
@@ -168,25 +206,35 @@ CRC_Bitfield_T Mailbox::computeCRC(char * cStr, uint16_t nPassDown, int nLen)
         nPos++;
     }
 
-    //Create the CRC bitfield and load the product into it
-    CRC_Bitfield_T nCRC;
-    CRC.nNum = nNumerator & 0x7FFF;
-
-    return nCRC;
+    //Return the final 15 bits of the numerator as the remainder
+    return nNumerator & 0x7FFF;
 }
 
+/*-------------------------------------------------------------------------------------------------
+    updateStateMachine
+
+    Updates the central mailbox state machine and runs its state-change logic.
+
+    INPUT   --  NONE
+
+    OUTPUT (MailboxState_T)
+        The output of the next-state logic. This is what the mailbox state will be for the next
+        process frame.
+*/
 MailboxState_T Mailbox::updateStateMachine()
 {
-    switch(stNext_MailboxState)
+    MailboxState_T stNext_MailboxState;
+
+    switch(stMailboxState)
     {
     case MailboxState_T::eStart:
 
         //Once a TX message is ready, shift to normal state
         if(bTX_Ready)
-            return MailboxState_T::eNormal;
+            stNext_MailboxState = MailboxState_T::eNormal;
 
         //Otherwise remain in startup
-        return MailboxState_T::eStart;
+        stNext_MailboxState = MailboxState_T::eStart;
 
         break;
 
@@ -194,14 +242,14 @@ MailboxState_T Mailbox::updateStateMachine()
 
         //If loss of coms is induced, shift to LOC_1
         if(bLOC_Induced)
-            return MailboxState_T::eLOC_1;
+            stNext_MailboxState = MailboxState_T::eLOC_1;
 
         //If the master device is still in LOC, shift to LOC_1
         if(is_LOC(stMasterState))
-            return MailboxState_T::eLOC_1;
+            stNext_MailboxState = MailboxState_T::eLOC_1;
 
         //Otherwise continue normal operations
-        return MailboxState_T::eNormal;
+        stNext_MailboxState = MailboxState_T::eNormal;
 
         break;
 
@@ -209,15 +257,15 @@ MailboxState_T Mailbox::updateStateMachine()
 
         //If loss of coms is induced, shift to LOC_2
         if(bLOC_Induced)
-            return MailboxState_T::eLOC_2;
+            stNext_MailboxState = MailboxState_T::eLOC_2;
         
         if(is_LOC(stMasterState))                           //If the master device is still in LOC
-            return MailboxState_T::eLOC_2;                      //Shift to LOC_2
+            stNext_MailboxState = MailboxState_T::eLOC_2;       //Shift to LOC_2
         else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
-            return MailboxState_T::eNormal;                     //Shift to normal state as well
+            stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
 
         //Otherwise remain in LOC_1
-        return MailboxState_T::eLOC_1
+        stNext_MailboxState = MailboxState_T::eLOC_1
 
         break;
 
@@ -225,15 +273,15 @@ MailboxState_T Mailbox::updateStateMachine()
 
         //If loss of coms is induced, shift to LOC_3
         if(bLOC_Induced)
-            return MailboxState_T::eLOC_3;
+            stNext_MailboxState = MailboxState_T::eLOC_3;
 
         if(is_LOC(stMasterState))                           //If the master device is still in LOC
-            return MailboxState_T::eLOC_3;                      //Shift to LOC_3
+            stNext_MailboxState = MailboxState_T::eLOC_3;       //Shift to LOC_3
         else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
-            return MailboxState_T::eNormal;                     //Shift to normal state as well
+            stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
 
         //Otherwise remain in LOC_2
-        return MailboxState_T::eLOC_2
+        stNext_MailboxState = MailboxState_T::eLOC_2
 
         break;
 
@@ -241,31 +289,31 @@ MailboxState_T Mailbox::updateStateMachine()
 
         //If loss of coms is induced, shift to LOC Recovery
         if(bLOC_Induced)
-            return MailboxState_T::eRecovery_LOC;
+            stNext_MailboxState = MailboxState_T::eRecovery_LOC;
 
-        if(is_LOC(stMasterState))                           //If the master device is still in LOC
-            return MailboxState_T::eRecovery_LOC;               //Shift to Recovery_LOC
-        else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
-            return MailboxState_T::eNormal;                     //Shift to normal state as well
+        if(is_LOC(stMasterState))                               //If the master device is still in LOC
+            stNext_MailboxState = MailboxState_T::eRecovery_LOC;    //Shift to Recovery_LOC
+        else if(stMasterState == MailboxState_T::eNormal)       //If the master device is back to normal operations
+            stNext_MailboxState = MailboxState_T::eNormal;          //Shift to normal state as well
 
         //Otherwise remain in LOC_3
-        return MailboxState_T::eLOC_3
+        stNext_MailboxState = MailboxState_T::eLOC_3
 
         break;
 
     case MailboxState_T::eRecovery_LOC:
 
         //Remain in Recovery_LOC until the main process in loop() sets the recovery flag
-        return MailboxState_T::eRecovery_LOC;
+        stNext_MailboxState = MailboxState_T::eRecovery_LOC;
 
         break;
 
     case MailboxState_T::eRecovery:
 
-        if(stMasterState == MailboxState_T::eNormal)    //If the master device is back to normal operations
-            return MailboxState_T::eNormal;                 //Shift to normal state as well
-        else                                            //Else
-            return MailboxState_T::eRecovery;               //Remain in recovery
+        if(stMasterState == MailboxState_T::eNormal)        //If the master device is back to normal operations
+            stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
+        else                                                //Else
+            stNext_MailboxState = MailboxState_T::eRecovery;    //Remain in recovery
 
         break;
     
@@ -273,8 +321,53 @@ MailboxState_T Mailbox::updateStateMachine()
 
         //Should not be here
         //Set state to eRecovery
-        return MailboxState_T::eRecovery;
+        stNext_MailboxState = MailboxState_T::eRecovery;
     }
+
+    //Update internal information in preparation for potential state change
+    switch(stNext_MailboxState)
+    {
+    case MailboxState_T::eStart:
+
+        //Continue down
+
+    case MailboxState_T::eNormal:
+
+        //Set TX message length
+        nTX_Message_Length = _TX_MESSAGE_LENGTH_NORMAL;
+
+        break;
+
+    case MailboxState_T::eLOC_1:
+
+        //Continue down
+
+    case MailboxState_T::eLOC_2:
+
+        //Continue down
+
+    case MailboxState_T::eLOC_3:
+
+        //Continue down
+
+    case MailboxState_T::eRecovery_LOC:
+
+       //Continue down
+
+    case MailboxState_T::eRecovery:
+
+        //Set TX message length
+        nTX_Message_Length = _TX_MESSAGE_LENGTH_RECOVERY;
+
+        break;
+    
+    default:
+
+        //Do nothing
+    }
+
+    //Return the next state
+    return stNext_MailboxState;
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -308,7 +401,8 @@ void Mailbox::Process_RX()
         //Load into RX Message
         mRX = RX_Message(stRX_msg);
 
-        if(mRX.SequenceNum() != mTX.SequenceNum())
+        //If the RX_Message's sequence number isn't 1 + the last TX'd message's, induce LOC
+        if(mRX.SequenceNum() != (mTX.SequenceNum()+1))
             induce_LOC();
 
         break;
@@ -333,6 +427,11 @@ void Mailbox::Process_RX()
         //Create message structure
         RX_Message_Structure_Recovery_T * stRXmsg = (RX_Message_Structure_Recovery_T *)cRX_Buf;
 
+        //If the mailbox state is already LOC_x, then we have already reset the sequence number.
+        //  So if the RX message's sequence number isn't 1 + the last TX'd message's, incude LOC
+        if(is_LOC(stMailboxState) && (mRX.SequenceNum() != (mTX.SequenceNum()+1)))
+            induce_LOC();
+
         //Load into RX message
         mRX = RX_Message(stRX_msg);
 
@@ -346,8 +445,7 @@ void Mailbox::Process_RX()
 
 
     Set_RX_Buf_Ready(false);    //Clear bRX_Buf_Ready as the buffer's message has now been processed
-    Set_RX_Ready();             //Set bRX_Ready to signal loop() that a new message has been 
-                                //  processed
+    Set_RX_Ready();             //Set bRX_Ready to signal loop() that a new message has been processed
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -369,11 +467,13 @@ void Mailbox::Process_TX()
     if(!TX_Ready())
         return;
 
+    //Set TX message sequence number
+    mTX.Set_SequenceNum(mRX.SequenceNum()+1);
+
     //Populate the message into cTX_Buf according to the current mailbox state
     switch(stMailboxState)
     {
     case MailboxState_T::eNormal:
-
         //Create message structure
         TX_Message_Structure_Normal_T * stTX_msg;
         mTX.encode_MessageStructure(*stTX_msg);
@@ -470,7 +570,7 @@ void Mailbox::RX_USB()
                 memcpy(cRX_Buf, lLetter.cData, nRX_Message_Length);     //Copy the message to the RX buffer
                 Set_RX_Buf_Ready(true);                                 //Set bRX_Buf_ready to pend Process_RX()
                 
-                Reset_TimeoutCounter();
+                Reset_TimeoutCounter(); //Reset the timeout counter
                 
                 return;
             }        

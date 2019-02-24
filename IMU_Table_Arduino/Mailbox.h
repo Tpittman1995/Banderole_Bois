@@ -9,6 +9,9 @@
 #define HI_32(x)    ((x) & 0xFFFF0000)
 #define LO_32(x)    ((x) & 0x0000FFFF)
 
+#define MERGE_16(hi, lo)    ((((hi) & 0x00FF) << 8) + ((lo) & 0x00FF))
+#define MERGE_32(hi, lo)    ((((hi) & 0x0000FFFF) << 16) + ((lo) & 0x0000FFFF))
+
 /* The timeout threshold for communications in milliseconds ///////////////////////////////////////
 
     If the amount of time specified above (in ms) is reached without a proper message being
@@ -57,7 +60,7 @@ public:
     TX_Message & TX() const { return mTX; }
 
     void Reset_TimeoutCounter()     { nTimeoutCounter = 0; }
-    void Set_Recovery()             { stNext_MailboxState = MailboxState_T::eRecovery; }
+    void Set_Recovery()             { stMailboxState = MailboxState_T::eRecovery; }
     void Set_RX(RX_Message & oRX)   { mRX = oRX; }
     void Set_RX_Event()             { bRX_Event = true; }
 
@@ -84,12 +87,6 @@ private:
 
         //Stop byte
         const uint8_t nStopByte = 0xE7;
-    };
-
-    typedef struct CRC_Bitfield_T
-    {
-        //Contains 17 bit value for CRC computations
-        uint16_t nNum : 15;
     };
 
     //Private Functions
@@ -135,8 +132,7 @@ private:
 
     int RX_USB(Letter_T & lLetter);
     uint16_t computeCRC(Letter_T & lLetter);
-
-    CRC_Bitfield_T computeCRC(char * cStr, uint16_t nPassDown, int nLen);
+    uint16_t computeCRC(char * cStr, int nLen);
 
     MailboxState_T updateStateMachine();
 
@@ -162,7 +158,7 @@ private:
     unsigned long nTimeoutCounter;
     uint8_t nTX_Message_Length, nRX_Message_Length;                 //Dynamic message size depending on the mailbox status
 
-    MailboxState_T stMailboxState, stNext_MailboxState, stMasterState;
+    MailboxState_T stMailboxState, stMasterState;
     RX_Message mRX;     //RX Message structure
     TX_Message mTX;     //TX Message structure
 };
