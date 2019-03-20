@@ -5,22 +5,27 @@
 /*-------------------------------------------------------------------------------------------------
     Constructor -- Default
 */
-Mailbox::Mailbox()
+MailBox::MailBox()
 {
     bRX_Ready = false;
     bTX_Ready = false;
     bRX_Buf_Ready = false;
     bTX_Buf_Ready = false;
+    bRX_Event = false;
+    bLOC_Induced = false;
+
+    nMasterSequenceNum = 0;
+    nTimeoutCounter = 0;
+    nRX_Message_Length = _RX_MESSAGE_LENGTH_NORMAL;
+    nTX_Message_Length = _TX_MESSAGE_LENGTH_NORMAL;
 
     stMailboxState = MailboxState_T::eStart;
-    nRX_Message_Length = _RX_MESSAGE_LENGTH;
-    nTX_Message_Length = _TX_MESSAGE_LENGTH;
 }
 
 /*-------------------------------------------------------------------------------------------------
     Destructor -- Default
 */
-Mailbox::~Mailbox()
+MailBox::~MailBox()
 {
 
 }
@@ -35,25 +40,25 @@ Mailbox::~Mailbox()
 
     Output (void)
 */
-void Mailbox::runFrame_USB()
+static void MailBox::runFrame_USB(MailBox & mMailbox)
 {
     //RX Message from master
-    RX_USB();
+    mMailbox.RX_USB();
 
     //Process RX message
-    Process_RX();
+    mMailbox.Process_RX();
 
     //Update state machine
-    stMailboxState = updateStateMachine();
+    mMailbox.stMailboxState = mMailbox.updateStateMachine();
 
     //Create response message
-    Process_TX();
+    mMailbox.Process_TX();
 
     //TX Message to master
-    TX_USB();
+    mMailbox.TX_USB();
 }
 
-//  Mailbox -- Private Functions //////////////////////////////////////////////////////////////////
+//  MailBox -- Private Functions //////////////////////////////////////////////////////////////////
 
 /*-------------------------------------------------------------------------------------------------
     checkCRC
@@ -68,7 +73,7 @@ void Mailbox::runFrame_USB()
     OUTPUT (bool)
         Returns true if the CRC is correct. Returns false if not.
 */
-bool Mailbox::checkCRC(Letter_T & lLetter)
+bool MailBox::checkCRC(Letter_T & lLetter)
 {
     //Create a string with the length of the letter minus the stop byte
     int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 1;
@@ -85,7 +90,7 @@ bool Mailbox::checkCRC(Letter_T & lLetter)
     cData[2+nStr_Len] = HI_16(lLetter.nCRC);
     cData[3+nStr_Len] = LO_16(lLetter.nCRC);
 
-    if(!computeCRC(cData, *((uint16_t *)cData), nStr_Len);
+    if(!computeCRC(cData, nStr_Len))
         return true;
     else
         return false;
@@ -104,7 +109,7 @@ bool Mailbox::checkCRC(Letter_T & lLetter)
     OUTPUT (int)
         Returns the number of characters that was read in through the serial event.
 */
-int Mailbox::RX_USB(Letter_T & lLetter)
+int MailBox::RX_USB(Letter_T & lLetter)
 {
     //Else continue to fill up the buffer
     int i = 0;
@@ -152,7 +157,7 @@ int Mailbox::RX_USB(Letter_T & lLetter)
     OUTPUT (uint16_t)
         Returns the 15 bit CRC that is generated in the form of a 16 bit integer.
 */
-uint16_t Mailbox::computeCRC(Letter_T & lLetter)
+uint16_t MailBox::computeCRC(Letter_T & lLetter)
 {
     //Create a string with the length of the letter minus the cData pointer and stop byte
     int nStr_Len = sizeof(lLetter) + strlen(lLetter.cData) - 2;
@@ -185,23 +190,23 @@ uint16_t Mailbox::computeCRC(Letter_T & lLetter)
     OUTPUT (uint16_t)
         Returns the 15 bit CRC that is generated in the form of a 16 bit integer.
 */
-uint16_t Mailbox::computeCRC(char * cStr, int nLen)
+uint16_t MailBox::computeCRC(char * cStr, int nLen)
 {
     int nPos = 0;
-    uint16_t nProduct, nNumerator = MERGE_16(*cData, *(cData+1)), nDenominator;
+    uint16_t nProduct, nNumerator = MERGE_16(*cStr, *(cStr+1)), nDenominator;
 
     //Iterate through string
     while(nPos <= nLen)
     {
         if(!(nNumerator & 0x8000))  //If the first bit of the passed down value is 0
-            nDenominator - 0;           //Set the second value to 0
+            nDenominator = 0;           //Set the second value to 0
         else                        //Else
             nDenominator = 0xAAAA;      //Set it to the divisor
 
         //Calculate product for the current 16 bit window
-        nNumerator = (nPassdown << 1);                                      //Shift the passdown to the right by 1
-        nNumerator += ((uint16_t *)(cStr+(nPos/8)) & (0x80 >> (nPos % 8))); //Add the next bit in the string
-        nNumerator ^ nDenominator;                                          //Xor the numerator and denominator   
+        nNumerator = (nNumerator << 1);                                     //Shift the passdown to the right by 1
+        nNumerator += (*((uint16_t *)(cStr+(nPos/8))) & (0x80 >> (nPos % 8))); //Add the next bit in the string
+        nNumerator ^= nDenominator;                                          //Xor the numerator and denominator   
     
         nPos++;
     }
@@ -221,7 +226,7 @@ uint16_t Mailbox::computeCRC(char * cStr, int nLen)
         The output of the next-state logic. This is what the mailbox state will be for the next
         process frame.
 */
-MailboxState_T Mailbox::updateStateMachine()
+MailBox::MailboxState_T MailBox::updateStateMachine()
 {
     MailboxState_T stNext_MailboxState;
 
@@ -265,7 +270,7 @@ MailboxState_T Mailbox::updateStateMachine()
             stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
 
         //Otherwise remain in LOC_1
-        stNext_MailboxState = MailboxState_T::eLOC_1
+        stNext_MailboxState = MailboxState_T::eLOC_1;
 
         break;
 
@@ -281,7 +286,7 @@ MailboxState_T Mailbox::updateStateMachine()
             stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
 
         //Otherwise remain in LOC_2
-        stNext_MailboxState = MailboxState_T::eLOC_2
+        stNext_MailboxState = MailboxState_T::eLOC_2;
 
         break;
 
@@ -297,7 +302,7 @@ MailboxState_T Mailbox::updateStateMachine()
             stNext_MailboxState = MailboxState_T::eNormal;          //Shift to normal state as well
 
         //Otherwise remain in LOC_3
-        stNext_MailboxState = MailboxState_T::eLOC_3
+        stNext_MailboxState = MailboxState_T::eLOC_3;
 
         break;
 
@@ -322,6 +327,8 @@ MailboxState_T Mailbox::updateStateMachine()
         //Should not be here
         //Set state to eRecovery
         stNext_MailboxState = MailboxState_T::eRecovery;
+
+        break;
     }
 
     //Update internal information in preparation for potential state change
@@ -364,6 +371,8 @@ MailboxState_T Mailbox::updateStateMachine()
     default:
 
         //Do nothing
+
+        break;
     }
 
     //Return the next state
@@ -383,11 +392,14 @@ MailboxState_T Mailbox::updateStateMachine()
 
     OUTPUT (void)
 */
-void Mailbox::Process_RX()
+void MailBox::Process_RX()
 {
     //Check to see if the RX buffer is ready for processing and there is no untouched message
     if(!RX_Buf_Ready())
         return;
+
+    RX_Message::RX_Message_Structure_Normal_T * stRX_msg;
+    RX_Message::RX_Message_Structure_Recovery_T * stRXmsg;
     
     //Begin parsing the buffered message based on the master's mailbox state, as that will
     //determine the type of message that was received
@@ -396,13 +408,13 @@ void Mailbox::Process_RX()
     case MailboxState_T::eNormal:
 
         //Create message structure
-        RX_Message_Structure_Normal_T * stRX_msg = (RX_Message_Structure_Normal_T *)cRX_Buf;
+         stRX_msg = (RX_Message::RX_Message_Structure_Normal_T *)cRX_Buf;
 
         //Load into RX Message
-        mRX = RX_Message(stRX_msg);
+        mRX = RX_Message(*stRX_msg);
 
         //If the RX_Message's sequence number isn't 1 + the last TX'd message's, induce LOC
-        if(mRX.SequenceNum() != (mTX.SequenceNum()+1))
+        if(mRX.SequenceNum() != (nMasterSequenceNum + 1))
             induce_LOC();
 
         break;
@@ -411,11 +423,11 @@ void Mailbox::Process_RX()
 
         //Continue down  
 
-    case MailboxState_T::eLOC2:
+    case MailboxState_T::eLOC_2:
 
         //Contnue down
 
-    case MailboxState_T::eLOC3:
+    case MailboxState_T::eLOC_3:
 
         //Induce LOC and continue down
         induce_LOC();
@@ -425,15 +437,15 @@ void Mailbox::Process_RX()
     case MailboxState_T::eRecovery:
 
         //Create message structure
-        RX_Message_Structure_Recovery_T * stRXmsg = (RX_Message_Structure_Recovery_T *)cRX_Buf;
+        stRX_msg = (RX_Message::RX_Message_Structure_Normal_T *)cRX_Buf;
 
         //If the mailbox state is already LOC_x, then we have already reset the sequence number.
-        //  So if the RX message's sequence number isn't 1 + the last TX'd message's, incude LOC
-        if(is_LOC(stMailboxState) && (mRX.SequenceNum() != (mTX.SequenceNum()+1)))
+        //  So if the RX message's sequence number isn't 1 + the last TX'd message's, induce LOC
+        if(is_LOC(stMailboxState) && (mRX.SequenceNum() != (nMasterSequenceNum + 1)))
             induce_LOC();
 
         //Load into RX message
-        mRX = RX_Message(stRX_msg);
+        mRX = RX_Message(*stRX_msg);
 
         break;
 
@@ -461,10 +473,10 @@ void Mailbox::Process_RX()
 
     OUTPUT (void)
 */
-void Mailbox::Process_TX()
+void MailBox::Process_TX()
 {
     //Check to see if a TX message is ready to be processed
-    if(!TX_Ready())
+    if(!TX_Ready() && (stMailboxState != MailboxState_T::eStart))
         return;
 
     //Set TX message sequence number
@@ -475,7 +487,7 @@ void Mailbox::Process_TX()
     {
     case MailboxState_T::eNormal:
         //Create message structure
-        TX_Message_Structure_Normal_T * stTX_msg;
+        TX_Message::TX_Message_Structure_Normal_T * stTX_msg;
         mTX.encode_MessageStructure(*stTX_msg);
 
         //Copy to the TX buffer
@@ -487,11 +499,11 @@ void Mailbox::Process_TX()
 
         //Continue down
 
-    case MailboxState_T::eLOC2:
+    case MailboxState_T::eLOC_2:
 
         //Continue down
 
-    case MailboxState_T::eLOC3:
+    case MailboxState_T::eLOC_3:
 
         //Continue down
 
@@ -505,7 +517,7 @@ void Mailbox::Process_TX()
         mTX.Set_HashCompare(mRX.HashCompare());
 
         //Create message structure
-        TX_Message_Structure_Recovery_T * stTXmsg;
+        TX_Message::TX_Message_Structure_Recovery_T * stTXmsg;
         mTX.encode_MessageStructure(*stTX_msg);
 
         //Copy to the TX buffer
@@ -536,7 +548,7 @@ void Mailbox::Process_TX()
 
     OUPUT (void)
 */
-void Mailbox::RX_USB()
+void MailBox::RX_USB()
 {
     //Check for nonexistant serial event
     if(!Check_RX_Event())
@@ -559,7 +571,7 @@ void Mailbox::RX_USB()
         {
             if(checkCRC(lLetter)) //If the CRC returns no errors
             {
-                stMasterState = (MailboxState_T)lLetter.cMessageType   //Set the master's mailbox status to the message code
+                stMasterState = (MailboxState_T)lLetter.cMessageType;   //Set the master's mailbox status to the message code
                 
                 //Set the expected RX message length
                 if((stMasterState == MailboxState_T::eNormal) || (stMasterState == MailboxState_T::eStart))
@@ -577,7 +589,7 @@ void Mailbox::RX_USB()
         }
     }
     
-    induce_LOC(); //FLag Loss of Coms
+    induce_LOC(); //Flag Loss of Coms
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -593,7 +605,7 @@ void Mailbox::RX_USB()
 
     OUPUT (void)
 */
-void Mailbox::TX_USB()
+void MailBox::TX_USB()
 {
     //Check for a processed message within the TX buffer
     if(!TX_Buf_Ready())
@@ -605,7 +617,7 @@ void Mailbox::TX_USB()
     //Create and send a letter
     Letter_T lLetter;
 
-    lLetter.cMessageType = cMailboxStatus;
+    lLetter.cMessageType = (uint8_t)stMailboxState;
     lLetter.nMessageLength = nTX_Message_Length + sizeof(lLetter) - sizeof(lLetter.cData);
     lLetter.cData = cTX_Buf;
     lLetter.nCRC = computeCRC(lLetter) & 0x7FFF;
@@ -624,7 +636,7 @@ void Mailbox::TX_USB()
 
     OUPUT (void)
 */
-void Mailbox::TX_USB(Letter_T & lLetter)
+void MailBox::TX_USB(Letter_T & lLetter)
 {
     Serial.write(lLetter.cMessageType);
     Serial.write(lLetter.nMessageLength);

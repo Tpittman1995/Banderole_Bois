@@ -1,10 +1,12 @@
 #ifndef MESSAGE_STRUCTURE_H
 #define MESSAGE_STRUCTURE_H
 
-#define _RX_MESSAGE_LENGTH_NORMAL   sizeof(RX_Message_Structure_Normal_T)
-#define _RX_MESSAGE_LENGTH_RECOVERY sizeof(RX_Message_Structure_Recovery_T)
-#define _TX_MESSAGE_LENGTH_NORMAL   sizeof(TX_Message_Structure_Normal_T)
-#define _TX_MESSAGE_LENGTH_RECOVERY sizeof(TX_Message_Structure_Recovery_T)
+#include "Arduino.h"
+
+#define _RX_MESSAGE_LENGTH_NORMAL   sizeof(RX_Message::RX_Message_Structure_Normal_T)
+#define _RX_MESSAGE_LENGTH_RECOVERY sizeof(RX_Message::RX_Message_Structure_Recovery_T)
+#define _TX_MESSAGE_LENGTH_NORMAL   sizeof(TX_Message::TX_Message_Structure_Normal_T)
+#define _TX_MESSAGE_LENGTH_RECOVERY sizeof(TX_Message::TX_Message_Structure_Recovery_T)
 
 class RX_Message
 {
@@ -16,7 +18,7 @@ public:
         int bOperation_En   :   1,
             bMotor_x_En     :   1,
             bMotor_y_En     :   1,
-            bMotor_z_En     :   1,
+            bMotor_z_En     :   1;
     };
 
     typedef struct RX_Message_Structure_Normal_T
@@ -64,7 +66,6 @@ public:
     bool            Motor_x_en()   const    { return stStatus.bMotor_x_En; }
     bool            Motor_y_en()   const    { return stStatus.bMotor_y_En; }
     bool            Motor_z_en()   const    { return stStatus.bMotor_z_En; }
-    bool            LOC()          const    { return stStatus.bLOC;}
 
     float           Position_x_cmd() const  { return fPosition_x_cmd; }
     float           Position_y_cmd() const  { return fPosition_x_cmd; }
@@ -167,7 +168,6 @@ public:
     void    Set_Operating(const bool bStatus)           { stStatus.bOperating = bStatus; }
     void    Set_CommandInProgress(const bool bStatus)   { stStatus.bCommandInProgress = bStatus; }
     void    Set_CommandComplete(const bool bStatus)     { stStatus.bCommandComplete = bStatus; }
-    void    Set_LOC(const bool bStatus)                 { stStatus.bLOC = bStatus; }
 
     void    Set_OverTemp_x(const bool bStatus)      { stStatus.stFlags_x.bOverTemp = bStatus; }
     void    Set_OverVoltage_x(const bool bStatus)   { stStatus.stFlags_x.bOverVoltage = bStatus; }

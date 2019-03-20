@@ -1,7 +1,6 @@
 #ifndef MAILBOX_H
 #define MAILBOX_H
 
-#include "Arduino.h"
 #include "Message_Structure.h"
 
 #define HI_16(x)    ((x) & 0xFF00)
@@ -19,7 +18,7 @@
 */
 #define _LOC_TIMEOUT_MS 100
 
-class Mailbox
+class MailBox
 {
 public:
 
@@ -42,22 +41,22 @@ public:
     };    
 
     //Public Functions
-    Mailbox();
-    ~Mailbox();
+    MailBox();
+    ~MailBox();
 
     bool RX_Ready() const   { return bRX_Ready; }
     bool TX_Ready() const   { return bTX_Ready; }
 
     MailboxState_T MailboxState() const { return stMailboxState; }
 
-    RX_Message & RX() const  
+    RX_Message & RX()
     {
         //Clear RX_Ready to show that the message has been seen
         bRX_Ready = false;
         return mRX; 
     }
 
-    TX_Message & TX() const { return mTX; }
+    TX_Message & TX() { return mTX; }
 
     void Reset_TimeoutCounter()     { nTimeoutCounter = 0; }
     void Set_Recovery()             { stMailboxState = MailboxState_T::eRecovery; }
@@ -71,7 +70,7 @@ public:
         mTX = oTX;
     }
 
-    void runFrame_USB();
+    static void runFrame_USB(MailBox & mMailbox);
 
 private:
 
@@ -152,11 +151,12 @@ private:
     //Private Operator Overloads
 
     //Private Members
-    bool bRX_Ready, bTX_Ready, bRX_Buf_Ready, bTX_Buf_Ready;        //Flags for message timing
+    bool bRX_Ready, bTX_Ready, bRX_Buf_Ready, bTX_Buf_Ready;                       //Flags for message timing
     bool bRX_Event, bLOC_Induced;
-    char cRX_Buf[_RX_MESSAGE_LENGTH], cTX_Buf[_TX_MESSAGE_LENGTH];  //Char buffers for serial messaging
+    char cRX_Buf[_RX_MESSAGE_LENGTH_NORMAL], cTX_Buf[_TX_MESSAGE_LENGTH_NORMAL];   //Char buffers for serial messaging
     unsigned long nTimeoutCounter;
-    uint8_t nTX_Message_Length, nRX_Message_Length;                 //Dynamic message size depending on the mailbox status
+    uint8_t nTX_Message_Length, nRX_Message_Length;                                //Dynamic message size depending on the mailbox status
+    uint32_t nMasterSequenceNum;
 
     MailboxState_T stMailboxState, stMasterState;
     RX_Message mRX;     //RX Message structure

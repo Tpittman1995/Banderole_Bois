@@ -7,7 +7,13 @@
 */
 RX_Message::RX_Message()
 {
-    nSequenceNum = 0;
+    nSequenceNum = nHashCompare = 0;
+
+    stStatus.bOperation_En = 0;
+    stStatus.bMotor_x_En = 0;
+    stStatus.bMotor_y_En = 0;
+    stStatus.bMotor_z_En = 0;
+
     fPosition_x_cmd = fPosition_y_cmd = fPosition_z_cmd = 0;
     fVelocity_x_cmd = fVelocity_y_cmd = fVelocity_z_cmd = 0;
     fTorque_x_cmd = fTorque_y_cmd = fTorque_z_cmd = 0;
@@ -19,7 +25,12 @@ RX_Message::RX_Message()
 RX_Message::RX_Message(RX_Message_Structure_Normal_T & stMessage)
 {
     nSequenceNum = stMessage.nSequenceNum;
-    stStatus = stMessage.stStatus;
+
+    stStatus.bOperation_En = stMessage.stStatus.bOperation_En;
+    stStatus.bMotor_x_En = stMessage.stStatus.bMotor_x_En;
+    stStatus.bMotor_y_En = stMessage.stStatus.bMotor_y_En;
+    stStatus.bMotor_z_En = stMessage.stStatus.bMotor_z_En;
+
     fPosition_x_cmd = stMessage.fPosition_x_cmd;
     fPosition_y_cmd = stMessage.fPosition_y_cmd;
     fPosition_z_cmd = stMessage.fPosition_z_cmd;
@@ -37,7 +48,12 @@ RX_Message::RX_Message(RX_Message_Structure_Normal_T & stMessage)
 RX_Message::RX_Message(RX_Message_Structure_Recovery_T & stMessage)
 {
     nSequenceNum = stMessage.nSequenceNum;
-    stStatus = stMessage.stStatus;
+
+    stStatus.bOperation_En = 0;
+    stStatus.bMotor_x_En = 0;
+    stStatus.bMotor_y_En = 0;
+    stStatus.bMotor_z_En = 0;
+
     nHashCompare = stMessage.nHashCompare;
 }
 
@@ -57,6 +73,29 @@ RX_Message::~RX_Message()
 TX_Message::TX_Message()
 {
     nSequenceNum = nHashCompare = 0;
+
+    stStatus.stFlags_x.bOverTemp = 0;
+    stStatus.stFlags_x.bOverVoltage = 0;
+    stStatus.stFlags_x.bOverCurrent = 0;
+    stStatus.stFlags_x.bOverVelocity = 0;
+    stStatus.stFlags_x.bOverTorque = 0;
+
+    stStatus.stFlags_y.bOverTemp = 0;
+    stStatus.stFlags_y.bOverVoltage = 0;
+    stStatus.stFlags_y.bOverCurrent = 0;
+    stStatus.stFlags_y.bOverVelocity = 0;
+    stStatus.stFlags_y.bOverTorque = 0;
+
+    stStatus.stFlags_z.bOverTemp = 0;
+    stStatus.stFlags_z.bOverVoltage = 0;
+    stStatus.stFlags_z.bOverCurrent = 0;
+    stStatus.stFlags_z.bOverVelocity = 0;
+    stStatus.stFlags_z.bOverTorque = 0;
+
+    stStatus.bOperating = 0;
+    stStatus.bCommandInProgress = 0;
+    stStatus.bCommandComplete = 0;
+
     fPosition_x_cmd = fPosition_y_cmd = fPosition_z_cmd = 0;
     fVelocity_x_cmd = fVelocity_y_cmd = fVelocity_z_cmd = 0;
     fTorque_x_cmd = fTorque_y_cmd = fTorque_z_cmd = 0;
@@ -105,6 +144,28 @@ TX_Message::~TX_Message()
 //Overload 1:
 void TX_Message::encode_MessageStructure(TX_Message_Structure_Normal_T & stTX)
 {
+    stTX.stStatus.stFlags_x.bOverTemp = stStatus.stFlags_x.bOverTemp;
+    stTX.stStatus.stFlags_x.bOverVoltage = stStatus.stFlags_x.bOverVoltage;
+    stTX.stStatus.stFlags_x.bOverCurrent = stStatus.stFlags_x.bOverCurrent;
+    stTX.stStatus.stFlags_x.bOverVelocity = stStatus.stFlags_x.bOverVelocity;
+    stTX.stStatus.stFlags_x.bOverTorque = stStatus.stFlags_x.bOverTorque;
+
+    stTX.stStatus.stFlags_y.bOverTemp = stStatus.stFlags_y.bOverTemp;
+    stTX.stStatus.stFlags_y.bOverVoltage = stStatus.stFlags_y.bOverVoltage;
+    stTX.stStatus.stFlags_y.bOverCurrent = stStatus.stFlags_y.bOverCurrent;
+    stTX.stStatus.stFlags_y.bOverVelocity = stStatus.stFlags_y.bOverVelocity;
+    stTX.stStatus.stFlags_y.bOverTorque = stStatus.stFlags_y.bOverTorque;
+
+    stTX.stStatus.stFlags_z.bOverTemp = stStatus.stFlags_z.bOverTemp;
+    stTX.stStatus.stFlags_z.bOverVoltage = stStatus.stFlags_z.bOverVoltage;
+    stTX.stStatus.stFlags_z.bOverCurrent = stStatus.stFlags_z.bOverCurrent;
+    stTX.stStatus.stFlags_z.bOverVelocity = stTX.stStatus.stFlags_z.bOverVelocity;
+    stTX.stStatus.stFlags_z.bOverTorque = stTX.stStatus.stFlags_z.bOverTorque;
+
+    stTX.stStatus.bOperating = stTX.stStatus.bOperating;
+    stTX.stStatus.bCommandInProgress = stTX.stStatus.bCommandInProgress;
+    stTX.stStatus.bCommandComplete = stTX.stStatus.bCommandComplete;
+
     stTX.fPosition_x_cmd = fPosition_x_cmd;
     stTX.fPosition_y_cmd = fPosition_y_cmd;
     stTX.fPosition_z_cmd = fPosition_z_cmd;
@@ -143,6 +204,28 @@ void TX_Message::encode_MessageStructure(TX_Message_Structure_Normal_T & stTX)
 //Overload 2:
 void TX_Message::encode_MessageStructure(TX_Message_Structure_Recovery_T & stTX)
 {
+    stTX.stStatus.stFlags_x.bOverTemp = stStatus.stFlags_x.bOverTemp;
+    stTX.stStatus.stFlags_x.bOverVoltage = stStatus.stFlags_x.bOverVoltage;
+    stTX.stStatus.stFlags_x.bOverCurrent = stStatus.stFlags_x.bOverCurrent;
+    stTX.stStatus.stFlags_x.bOverVelocity = stStatus.stFlags_x.bOverVelocity;
+    stTX.stStatus.stFlags_x.bOverTorque = stStatus.stFlags_x.bOverTorque;
+
+    stTX.stStatus.stFlags_y.bOverTemp = stStatus.stFlags_y.bOverTemp;
+    stTX.stStatus.stFlags_y.bOverVoltage = stStatus.stFlags_y.bOverVoltage;
+    stTX.stStatus.stFlags_y.bOverCurrent = stStatus.stFlags_y.bOverCurrent;
+    stTX.stStatus.stFlags_y.bOverVelocity = stStatus.stFlags_y.bOverVelocity;
+    stTX.stStatus.stFlags_y.bOverTorque = stStatus.stFlags_y.bOverTorque;
+
+    stTX.stStatus.stFlags_z.bOverTemp = stStatus.stFlags_z.bOverTemp;
+    stTX.stStatus.stFlags_z.bOverVoltage = stStatus.stFlags_z.bOverVoltage;
+    stTX.stStatus.stFlags_z.bOverCurrent = stStatus.stFlags_z.bOverCurrent;
+    stTX.stStatus.stFlags_z.bOverVelocity = stTX.stStatus.stFlags_z.bOverVelocity;
+    stTX.stStatus.stFlags_z.bOverTorque = stTX.stStatus.stFlags_z.bOverTorque;
+
+    stTX.stStatus.bOperating = stTX.stStatus.bOperating;
+    stTX.stStatus.bCommandInProgress = stTX.stStatus.bCommandInProgress;
+    stTX.stStatus.bCommandComplete = stTX.stStatus.bCommandComplete;
+
     stTX.fPosition_x = fPosition_x;
     stTX.fPosition_y = fPosition_y;
     stTX.fPosition_z = fPosition_z;
@@ -167,5 +250,6 @@ void TX_Message::encode_MessageStructure(TX_Message_Structure_Recovery_T & stTX)
     stTX.fDiffSteps_x = fDiffSteps_x;
     stTX.fDiffSteps_y = fDiffSteps_y;
     stTX.fDiffSteps_z = fDiffSteps_z;
-    stTX.nHashCOmpare = nHashCompare;
+
+    stTX.nHashCompare = nHashCompare;
 }
