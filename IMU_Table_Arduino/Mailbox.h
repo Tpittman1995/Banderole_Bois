@@ -22,7 +22,7 @@ class MailBox
 {
 public:
 
-    //Structs
+    //Public Structs
     typedef enum class MailboxState_T
     {
         eNormal         =   0x10,
@@ -74,6 +74,24 @@ public:
 
 private:
 
+    typedef enum class x
+    {
+        xgood = 1,
+        xbad = 0
+
+
+    };
+
+    typedef enum y
+    {
+        ygood = 0;
+        ybad = 1;
+    }
+
+    x xenum = xgood;
+    y yenum = x::xbad;
+
+    //Private Structs
     typedef struct Letter_T
     {
         //Message header

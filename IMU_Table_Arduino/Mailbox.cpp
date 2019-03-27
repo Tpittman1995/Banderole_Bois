@@ -245,12 +245,8 @@ MailBox::MailboxState_T MailBox::updateStateMachine()
 
     case MailboxState_T::eNormal:
 
-        //If loss of coms is induced, shift to LOC_1
-        if(bLOC_Induced)
-            stNext_MailboxState = MailboxState_T::eLOC_1;
-
-        //If the master device is still in LOC, shift to LOC_1
-        if(is_LOC(stMasterState))
+        //If the LOC flag has been set or the master device is in LOC, shift to LOC_1
+        if(bLOC_Induced || is_LOC(stMasterState))
             stNext_MailboxState = MailboxState_T::eLOC_1;
 
         //Otherwise continue normal operations
@@ -260,11 +256,7 @@ MailBox::MailboxState_T MailBox::updateStateMachine()
 
     case MailboxState_T::eLOC_1:
 
-        //If loss of coms is induced, shift to LOC_2
-        if(bLOC_Induced)
-            stNext_MailboxState = MailboxState_T::eLOC_2;
-        
-        if(is_LOC(stMasterState))                           //If the master device is still in LOC
+        if(bLOC_Induced || is_LOC(stMasterState))           //If the master device is still in LOC
             stNext_MailboxState = MailboxState_T::eLOC_2;       //Shift to LOC_2
         else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
             stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
@@ -276,11 +268,7 @@ MailBox::MailboxState_T MailBox::updateStateMachine()
 
     case MailboxState_T::eLOC_2:
 
-        //If loss of coms is induced, shift to LOC_3
-        if(bLOC_Induced)
-            stNext_MailboxState = MailboxState_T::eLOC_3;
-
-        if(is_LOC(stMasterState))                           //If the master device is still in LOC
+        if(bLOC_Induced || is_LOC(stMasterState))           //If the master device is still in LOC
             stNext_MailboxState = MailboxState_T::eLOC_3;       //Shift to LOC_3
         else if(stMasterState == MailboxState_T::eNormal)   //If the master device is back to normal operations
             stNext_MailboxState = MailboxState_T::eNormal;      //Shift to normal state as well
@@ -292,11 +280,7 @@ MailBox::MailboxState_T MailBox::updateStateMachine()
 
     case MailboxState_T::eLOC_3:
 
-        //If loss of coms is induced, shift to LOC Recovery
-        if(bLOC_Induced)
-            stNext_MailboxState = MailboxState_T::eRecovery_LOC;
-
-        if(is_LOC(stMasterState))                               //If the master device is still in LOC
+        if(bLOC_Induced || is_LOC(stMasterState))               //If the master device is still in LOC
             stNext_MailboxState = MailboxState_T::eRecovery_LOC;    //Shift to Recovery_LOC
         else if(stMasterState == MailboxState_T::eNormal)       //If the master device is back to normal operations
             stNext_MailboxState = MailboxState_T::eNormal;          //Shift to normal state as well
