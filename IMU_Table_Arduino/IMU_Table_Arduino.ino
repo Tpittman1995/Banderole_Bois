@@ -1,9 +1,18 @@
+#include <Arduino_FreeRTOS.h>
 #include "Mailbox.h"
 
-//Mailbox objects
+//  Global Definitions  /////////////////////////////////////////////////////////////
+
 MailBox g_Mailbox;
 RX_Message g_RX;
 TX_Message g_TX;
+
+//  Task Declarations //////////////////////////////////////////////////////////////
+
+void  Task_Mailbox(void * pvParameters);
+void  Task_MotorControl(void * pvParameters);
+
+//  Startup ////////////////////////////////////////////////////////////////////////
 
 void setup() 
 {
@@ -37,4 +46,3 @@ void serialEvent()
   //Set the mailbox's RX_Event flag
   g_Mailbox.Set_RX_Event();
 }
-
