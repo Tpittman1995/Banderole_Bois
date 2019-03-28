@@ -3,7 +3,7 @@
 // Constructor for Serial Class
 // Parameters: portName - name of serial port (dev/tty___), baudRate - sets baud (9600, 38400, ...)
 // Opens portName at given baud rate, no parity, 1 start bit, 1 stop bit, 8 bits of data
-Serial::Serial(const char portName[], int baudRate) {
+Serial::Serial(const char portName[]) {
     // Open the serial port for read write
     serial_port = open(portName, O_RDWR); //USB0 - "/dev/ttyACM0"
 
@@ -44,8 +44,8 @@ Serial::Serial(const char portName[], int baudRate) {
     tty.c_cc[VMIN] = 50;
 
     // Set in/out baud rate to be baudRate (might have to use B9600)
-    cfsetispeed(&tty, baudRate);
-    cfsetospeed(&tty, baudRate);
+    cfsetispeed(&tty, B38400);
+    cfsetospeed(&tty, B38400);
 
     // Save tty settings, also checking for error
     if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
@@ -67,7 +67,7 @@ void Serial::writeData(uint8_t msg[], int length){
 void Serial::readData(uint8_t *read_buf){
     uint8_t w;
     //uint8_t read_buf [4096];
-    memset(read_buf, '\0', sizeof(read_buf));
+    memset(read_buf, '\0', 4096); //sizeof(read_buf)
 
     // Read bytes. The behaviour of read() (e.g. does it block?,
     // how long does it block for?) depends on the configuration
@@ -81,7 +81,7 @@ void Serial::readData(uint8_t *read_buf){
     for(int i = 0; i < num_bytes; i++)
     {
         w = read_buf[i];
-        printf("hi %x \n", w);
+        printf("%x \n", w);
     }
     //printf(" ");
     // Here we assume we received ASCII data, but you might be sending raw bytes (in that case, don't try and

@@ -2,7 +2,7 @@
 #include "trax.h"
 #include "Serial.h"
 
-Serial serPort("/dev/ttyUSB0", 38400);      // Open serial port connected to TRAX - /ttyACM0
+Serial serPort("/dev/ttyUSB0"); // ,38400   Open serial port connected to TRAX - /ttyACM0
 
 /**
 * Writes a command to the PNI TRAX using PNI Binary protocol.
@@ -15,6 +15,7 @@ Serial serPort("/dev/ttyUSB0", 38400);      // Open serial port connected to TRA
 */
 int write_command(const Command cmd, const uint8_t *payload, const uint16_t payload_len)
 {
+    //printf("%x\n", payload[1]);
     /*
     * Construct the PNI Binary packet protocol.
     */
@@ -57,6 +58,7 @@ int write_command(const Command cmd, const uint8_t *payload, const uint16_t payl
     for (int i = 0; i < 20; i++)
     {
         packetContents[i] = packet[i];
+        printf("%x\n", packetContents[i]);
     }
     delete[] packet;
 

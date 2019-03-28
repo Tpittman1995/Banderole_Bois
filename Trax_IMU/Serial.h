@@ -19,7 +19,7 @@ using std::string;
 
 class Serial {
 public:
-    Serial(const char portName[] = "", int baudRate = 9600);
+    Serial(const char portName[] = ""); //int baudRate = 9600
     ~Serial();
     //void setBaud(int baudRate);
     void writeData(unsigned char msg[], int length);
@@ -27,7 +27,8 @@ public:
 
 private:
     string portName;
-    int baudRate;
+    //int baudRate;
     struct termios tty;
     int serial_port;
 };
+
