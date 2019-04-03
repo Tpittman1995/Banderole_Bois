@@ -87,6 +87,6 @@ enum Command : uint8_t
 uint16_t crc16(uint8_t *data, int length);
 float ntohf(float data);
 int write_command(const Command cmd, const uint8_t *payload, const uint16_t payload_len);
-int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length);
+int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length, const size_t responseSize);
 uint16_t crc16(uint8_t *data, int length);
 float ntohf(float data);

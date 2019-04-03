@@ -1,8 +1,85 @@
 #include <stdio.h>
 #include "trax.h"
-#include "Serial.h"
+#include "serial.h"
 
-Serial serPort("/dev/ttyUSB0"); // ,38400   Open serial port connected to TRAX - /ttyACM0
+serial::Serial serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80)); // Open serial port connected to TRAX - /ttyACM0
+
+///**
+//  * Puts the TRAX into compas mode, sets filter taps to 0, set to no autosampling,
+//  * set mag and accell coeff set to 0, set number of cal points to 18 then save
+//  * setting.
+//  *
+// */
+//int initCal() {
+//    Command SetFunctMode = kSetFunctionalMode;     // fame ID for setting TRAX to compas mode
+//    Command setFIR = ksetFIRFilters;               // frame ID for setting FIR filters to 0
+//    Command setConfig = kSetConfig;                 // frame ID to set configurations
+//    Command save = kSave;                           // frame ID to save settings to non volitile mem
+//    Command saveDone = kSaveDone;                   // frame ID to confirm save success
+//    Command setDataComp = kSetDataComponents;       // frame ID to set which data we want displayed
+
+//    success = 0;                                    // success variale for error handling
+
+//    Command readResp;                       // read populates with frame ID of message just read
+//    uint8_t payload_read[4096];             // read function populates with response payload
+//    uint8_t functModePayload[1] = {0x0};    // payload of setFunctionalMode
+//    uint8_t firPayload[7] = {0x3, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};     // payload of setFIRFilters
+//    uint8_t autoPayload[2] = {0xD, 0x0};    // payload for turning off autosampling
+//    uint8_t magCoeffPayload[5] = {0x12, 0x0, 0x0, 0x0, 0x0};    // saving to first coefff set
+//    uint8_t accelCoeffPayload[5] ={0x13, 0x0, 0x0, 0x0, 0x0};   // saving to first coeff set
+//    uint8_t calPointPayload[5] = {0xC, 0x0, 0x0, 0x0, 0x12};    // set cal points to 18
+
+//    // Set TRAX into compas mode
+//    write_command(SetFunctMode, functModePayload, 1);
+//    // Set FIR filters to 0
+//    write_command(setFIR, firPayload, 7);
+//    // Set autosampling to false
+//    write_command(setConfig, autoPayload, 2);
+//    // Set mag coeff set to 0
+//    write_command(setConfig, magCoeffPayload, 5);
+//    // Set accel coeff set to 0
+//    write_command(setConfig, accelCoeffPayload, 5);
+//    // Set number of calibration points to 18
+//    write_command(setConfig, calPointPayload, 5);
+//}
+
+///**
+//  * Prompts TRAX to begin calibratoin procedure by sending the start cal command
+// */
+//void startCal() {
+//    Command beginCal = kStartCal;   // command to start cal
+//    // payload to start cal in mag and accel mode
+//    uint8_t startCalPayload[4] = {0x0, 0x0, 0x0, 0x6E};
+
+//    // write start cal
+//    write_command(beginCal, startCalPayload, 4);
+//}
+
+///**
+//  * Commands TRAX to stop calibration
+// */
+//void abortCal() {
+//    Command stopCal = kStopCal; // command to abort cal
+
+//    // send command to abort cal
+//    write_command(stopCal, NULL, 0);
+//}
+
+///**
+//  * Commands TRAX to take a calibration point and check to ensure
+//  * that point was successfully taken
+// */
+//int takePoint() {
+//    Command takeCalPoint = kTakeUserCalSample;  // command to take point
+//    Command readResp;                       // read populates with frame ID of message just read
+//    uint8_t payloadRead[4096];             // read function populates with response payload
+
+//    // write command to take calibration point
+//    write_command(takeCalPoint, NULL, 0);
+//    // Read
+//    //read_command(readResp, payloadRead, 0x1000, 0x12);
+//}
+
 
 /**
 * Writes a command to the PNI TRAX using PNI Binary protocol.
@@ -52,7 +129,8 @@ int write_command(const Command cmd, const uint8_t *payload, const uint16_t payl
     // Trying to put data into array? - BS
     //uint8_t write_data[] = {*packet1, *packet2, *packet3, *packet4};
     // is this only sending first packet - packet[0] = 00? - BS
-    serPort.writeData(packet, packet_len);      // Could add error checking?
+
+    serPort.write(packet, packet_len);      // Could add error checking?
 
     uint8_t packetContents[20];
     for (int i = 0; i < 20; i++)
@@ -74,7 +152,7 @@ int write_command(const Command cmd, const uint8_t *payload, const uint16_t payl
 *
 * @return Zero upon success and -1 upon error.
 */
-int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length)
+int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length, const size_t responseSize)
 {
     /*
     * Read the packet header (packet length stored as uint16_t)
@@ -84,7 +162,7 @@ int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_len
 //    {
 //        return -1;
 //    }
-    serPort.readData(data);
+    size_t test = serPort.read(data, responseSize);
 
     uint16_t packet_len;
     memcpy(&packet_len, &data, 2);
@@ -131,7 +209,13 @@ int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_len
     */
     memcpy(&resp, &data[2], 1);
     memcpy(payload, &data[3], packet_len - 5);
-    std::cout << payload[0] << std::endl;
+
+    // print what was just read / check if everything got put into the propper variables
+    printf("%x \n", resp);
+    for(int i = 0; i < packet_len - 5; i++) {
+        printf("%x \n", payload[i]);
+    }
+    printf("%x \n", crc);
 
     return 0;
 }
