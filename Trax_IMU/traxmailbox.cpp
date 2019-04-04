@@ -1,9 +1,28 @@
 #include "traxmailbox.h"
 
-serial::Serial serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80));
 
-TraxMailbox::TraxMailbox() {
-    this->sampleCount = 0;
+/**
+* Deconstructor for Mailbox - closes serial port
+*
+*/
+TraxMailbox::~TraxMailbox() {
+    this->serPort.close();
+}
+
+/**
+* getter for sample count
+* @return: number of sample points that have been taken
+*/
+int TraxMailbox::getSampleCount() {
+    return this->sampleCount;
+}
+
+/**
+* setter for sample count
+* @param: count value to set sampleCount to
+*/
+void TraxMailbox::setSampleCount(int count) {
+    this->sampleCount = count;
 }
 
 /**
@@ -460,26 +479,6 @@ int TraxMailbox::setDefaultSettings() {
     Command save = kSave;
     Command saveDone = kSaveDone;
 
-//    // Commands to set and get config - autosampling
-//    Command setConfig = kSetConfig;
-//    Command checkConfig = kSetConfigDone;
-//    uint8_t autoPayloadSet[2] = {0xD, 0x0};    // payload for turning off autosampling
-
-//    // set and get mag and accel coeff set
-//    uint8_t magCoeffPayloadSet[5] = {0x12, 0x0, 0x0, 0x0, 0x0}; // payload to save to first coefff set
-//    uint8_t accelCoeffPayloadSet[5] ={0x13, 0x0, 0x0, 0x0, 0x0};  // payload to save to first coeff set
-
-//    // set and get total cal points
-//    uint8_t calPointPayloadSet[5] = {0xC, 0x0, 0x0, 0x0, 0x12};  // payload to set cal points to 18
-
-//    // Commands to set and get data components
-//    Command setDataComp = kSetDataComponents;
-//    uint8_t dataCompSet[4] ={0x3, 0x5, 0x18, 0x19}; // payload to set getData to heading, pitch and roll data
-//    Command getData = kGetData;
-
-//    // Commands to getModInfo
-//    Command getMod = kGetModInfo;
-
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
     uint8_t payloadRead[4096];     // read function populates with response payload
@@ -508,37 +507,6 @@ int TraxMailbox::setDefaultSettings() {
     if(payloadRead[0] == -1) {
         success = -1;
     }
-
-//    // set autosampling to false
-//    write_command(setConfig, autoPayloadSet, 2);
-//    success = read_command(readResp, payloadRead, 0, 5);  // Ensure setConfig command finished
-//    if(readResp != checkConfig) {
-//        success = -1;
-//    }
-
-//    // Set mag coeff to 0
-//    write_command(setConfig, magCoeffPayloadSet, 5);
-//    success = read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
-//    if(readResp != checkConfig) {
-//        success = -1;
-//    }
-
-//    // set accel coeff to 0
-//    write_command(setConfig, accelCoeffPayloadSet, 5);
-//    success = read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
-//    if(readResp != checkConfig) {
-//        success = -1;
-//    }
-
-//    // set total cal points to 18
-//    write_command(setConfig, calPointPayloadSet, 5);
-//    success = read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
-//    if(readResp != checkConfig) {
-//        success = -1;
-//    }
-
-//    // Set data components to heading, pitch, roll
-//    write_command(setDataComp, dataCompSet, 4);
 
     return success;
 }

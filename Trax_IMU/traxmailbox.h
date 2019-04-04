@@ -42,7 +42,12 @@
 // Define TraxMailbox class
 class TraxMailbox {
 public:
-    TraxMailbox();
+    TraxMailbox() :
+        serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80))
+    {
+        this->sampleCount = 0;
+    }
+    ~TraxMailbox();
 
     int initCal();              // et TRAX settings in order to calibrate
     void startCal();            // Send the start calibration command
@@ -51,6 +56,12 @@ public:
     int getPosition(uint8_t data[16]);  // Request position data (heading, pitch, roll)
     int save();                 // Send save command
     int setDefaultSettings();   // Set TRAX settings back to defaults
+
+    // Getters
+    int getSampleCount();
+
+    // Setters
+    void setSampleCount(int count);
 
 private:
     enum Command : uint8_t
@@ -96,8 +107,8 @@ private:
         kGetMagThruthMethod = 0x78,
         kGetMagThruthMethodResp = 0x79
     };
-    // Open serial port with baud rate set to 38400. - Check port path matches if move systems
-    int sampleCount;
+    serial::Serial serPort;  // Check port path matches if move systems
+    int sampleCount;            // Variable to track the number of sample points taken
 
     int write_command(const Command cmd, const uint8_t *payload, const uint16_t payload_len);
     int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length, const size_t responseSize);
