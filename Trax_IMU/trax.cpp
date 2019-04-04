@@ -4,81 +4,172 @@
 
 serial::Serial serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80)); // Open serial port connected to TRAX - /ttyACM0
 
-///**
-//  * Puts the TRAX into compas mode, sets filter taps to 0, set to no autosampling,
-//  * set mag and accell coeff set to 0, set number of cal points to 18 then save
-//  * setting.
-//  *
-// */
-//int initCal() {
-//    Command SetFunctMode = kSetFunctionalMode;     // fame ID for setting TRAX to compas mode
-//    Command setFIR = ksetFIRFilters;               // frame ID for setting FIR filters to 0
-//    Command setConfig = kSetConfig;                 // frame ID to set configurations
-//    Command save = kSave;                           // frame ID to save settings to non volitile mem
-//    Command saveDone = kSaveDone;                   // frame ID to confirm save success
-//    Command setDataComp = kSetDataComponents;       // frame ID to set which data we want displayed
+/**
+  * Puts the TRAX into compas mode, sets filter taps to 0, set to no autosampling,
+  * set mag and accell coeff set to 0, set number of cal points to 18 then save
+  * setting.
+  *
+  * @return: 0 upon success, -1 upon failure
+  *
+ */
+int initCal() {
+    // Commands to set and get functional mode to compas
+    Command SetFunctMode = kSetFunctionalMode;
+    Command getFunctMode = kGetFunctionalMode;
+    uint8_t functModePayload[1] = {0x0};    // payload to set functional mode to compas
 
-//    success = 0;                                    // success variale for error handling
+    // Commands to set and get FIR filters
+    Command setFIR = ksetFIRFilters;
+    Command checkFIR = kSetFIRFiltersDone;
+    uint8_t firPayloadSet[3] = {0x3, 0x1, 0x0};  // payload to set FIR filtersto 0
 
-//    Command readResp;                       // read populates with frame ID of message just read
-//    uint8_t payload_read[4096];             // read function populates with response payload
-//    uint8_t functModePayload[1] = {0x0};    // payload of setFunctionalMode
-//    uint8_t firPayload[7] = {0x3, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};     // payload of setFIRFilters
-//    uint8_t autoPayload[2] = {0xD, 0x0};    // payload for turning off autosampling
-//    uint8_t magCoeffPayload[5] = {0x12, 0x0, 0x0, 0x0, 0x0};    // saving to first coefff set
-//    uint8_t accelCoeffPayload[5] ={0x13, 0x0, 0x0, 0x0, 0x0};   // saving to first coeff set
-//    uint8_t calPointPayload[5] = {0xC, 0x0, 0x0, 0x0, 0x12};    // set cal points to 18
+    // Commands to set and get config - autosampling
+    Command setConfig = kSetConfig;
+    Command checkConfig = kSetConfigDone;
+    uint8_t autoPayloadSet[2] = {0xD, 0x0};    // payload for turning off autosampling
 
-//    // Set TRAX into compas mode
-//    write_command(SetFunctMode, functModePayload, 1);
-//    // Set FIR filters to 0
-//    write_command(setFIR, firPayload, 7);
-//    // Set autosampling to false
-//    write_command(setConfig, autoPayload, 2);
-//    // Set mag coeff set to 0
-//    write_command(setConfig, magCoeffPayload, 5);
-//    // Set accel coeff set to 0
-//    write_command(setConfig, accelCoeffPayload, 5);
-//    // Set number of calibration points to 18
-//    write_command(setConfig, calPointPayload, 5);
-//}
+    // set and get mag and accel coeff set
+    uint8_t magCoeffPayloadSet[5] = {0x12, 0x0, 0x0, 0x0, 0x0}; // payload to save to first coefff set
+    uint8_t accelCoeffPayloadSet[5] ={0x13, 0x0, 0x0, 0x0, 0x0};  // payload to save to first coeff set
 
-///**
-//  * Prompts TRAX to begin calibratoin procedure by sending the start cal command
-// */
-//void startCal() {
-//    Command beginCal = kStartCal;   // command to start cal
-//    // payload to start cal in mag and accel mode
-//    uint8_t startCalPayload[4] = {0x0, 0x0, 0x0, 0x6E};
+    // set and get total cal points
+    uint8_t calPointPayloadSet[5] = {0xC, 0x0, 0x0, 0x0, 0x12};  // payload to set cal points to 18
 
-//    // write start cal
-//    write_command(beginCal, startCalPayload, 4);
-//}
+    // Commands to save data to non volitile mem
+    Command save = kSave;
+    Command saveDone = kSaveDone;
 
-///**
-//  * Commands TRAX to stop calibration
-// */
-//void abortCal() {
-//    Command stopCal = kStopCal; // command to abort cal
+    // Commands to set and get data components
+    Command setDataComp = kSetDataComponents;
+    Command getData = kGetData;
 
-//    // send command to abort cal
-//    write_command(stopCal, NULL, 0);
-//}
+    // Structures for read to fill with data
+    Command readResp;         // read populates with frame ID of message just read
+    uint8_t payloadRead[4096];     // read function populates with response payload
 
-///**
-//  * Commands TRAX to take a calibration point and check to ensure
-//  * that point was successfully taken
-// */
-//int takePoint() {
-//    Command takeCalPoint = kTakeUserCalSample;  // command to take point
-//    Command readResp;                       // read populates with frame ID of message just read
-//    uint8_t payloadRead[4096];             // read function populates with response payload
+    int success = 0;                                    // success variale for error handling
 
-//    // write command to take calibration point
-//    write_command(takeCalPoint, NULL, 0);
-//    // Read
-//    //read_command(readResp, payloadRead, 0x1000, 0x12);
-//}
+    // set functional mode to compas mode
+    write_command(SetFunctMode, functModePayload, 1);
+    write_command(getFunctMode, NULL, 0);
+    read_command(readResp, payloadRead, 1, 6);  // Ensure that functional mode is set to compas (0)
+    if (payloadRead[0] != 0) {
+        success = -1;
+    }
+
+    // Set FIR filters to 0
+    write_command(setFIR, firPayloadSet, 3);
+    read_command(readResp, payloadRead, 0, 5);  // Ensure that setFIRFilters command finished
+    if(readResp != checkFIR) {
+        success = -1;
+    }
+
+    // set autosampling to false
+    write_command(setConfig, autoPayloadSet, 2);
+    read_command(readResp, payloadRead, 0, 5);  // Ensure setConfig command finished
+    if(readResp != checkConfig) {
+        success = -1;
+    }
+
+    // Set mag coeff to 0
+    write_command(setConfig, magCoeffPayloadSet, 5);
+    read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
+    if(readResp != checkConfig) {
+        success = -1;
+    }
+
+    // set accel coeff to 0
+    write_command(setConfig, accelCoeffPayloadSet, 5);
+    read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
+    if(readResp != checkConfig) {
+        success = -1;
+    }
+
+    // set total cal points to 18
+    write_command(setConfig, calPointPayloadSet, 5);
+    read_command(readResp, payloadRead, 0, 5);      // Ensure setConfig finished
+    if(readResp != checkConfig) {
+        success = -1;
+    }
+
+    return success;
+}
+
+/**
+  * Prompts TRAX to begin calibratoin procedure by sending the start cal command
+ */
+void startCal() {
+    Command beginCal = kStartCal;   // command to start cal
+    // payload to start cal in mag and accel mode
+    uint8_t startCalPayload[4] = {0x0, 0x0, 0x0, 0x6E};
+
+    // write start cal
+    write_command(beginCal, startCalPayload, 4);
+}
+
+/**
+  * Commands TRAX to stop calibration
+ */
+void abortCal() {
+    Command stopCal = kStopCal; // command to abort cal
+
+    // send command to abort cal
+    write_command(stopCal, NULL, 0);
+}
+
+/**
+  * Commands TRAX to take a calibration point and check to ensure
+  * that point was successfully taken
+  *
+  * @return: 0 upon success, -1 upon failure
+  *
+ */
+int takePoint() {
+    Command takeCalPoint = kTakeUserCalSample;  // command to take point
+    Command getSampleCount = kUserCalSampleCount;
+
+    Command readResp;                       // read populates with frame ID of message just read
+    uint8_t payloadRead[4096];             // read function populates with response payload
+
+    int success = 0;
+
+    // write command to take calibration point
+    write_command(takeCalPoint, NULL, 0);
+    read_command(readResp, payloadRead, 1, 6);  // Ensure cal point was taken
+    // need a private count variable to compart payload to
+
+    return success;
+}
+
+/**
+  * Requests data in form of heading, pitch and roll from TRAX
+  * then calls helper function to parse data into ascii
+  *
+  *@return: 0 upon success, -1 upon failure
+  *
+ */
+int getPosition() {
+    Command getData = kGetData;
+    Command checkData = kGetDataResp;
+
+    Command readResp;                      // read populates with frame ID of message just read
+    uint8_t payloadRead[4096];             // read function populates with response payload
+
+    int success = 0;       // variable to track success of data read
+
+    // request heading, pitch and roll data from TRAX
+    write_command(getData, NULL, 0);
+    //read_command(readResp, payloadRead, ) - have to figure out float 32 stuff // Read data from TRAX and ensure reading correct data
+    if(readResp != checkData) {
+        success = -1;
+    }
+
+    return success;
+}
+
+// TO DO:
+// Add function to change settings back to default and one to save data to non vol mem
+// Convert to class
 
 
 /**
