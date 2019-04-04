@@ -38,13 +38,20 @@ int main(void) {
     // Commands to save data to non volitile mem
     Command save = kSave;
     Command saveDone = kSaveDone;
+
     // Commands to set and get data components
     Command setDataComp = kSetDataComponents;
+    uint8_t dataCompSet[4] ={0x3, 0x5, 0x18, 0x19};
     Command getData = kGetData;
 
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
     uint8_t payloadRead[4096];     // read function populates with response payload
+
+    // get mod info
+    write_command(getModInfo, NULL, 0);
+    std::cout << "I am trying to read" << std::endl;
+    read_command(readResp, payloadRead, 8, 13);
 
     // set and get functional mode
     write_command(SetFunctMode, functModePayload, 1);
@@ -94,6 +101,13 @@ int main(void) {
     std::cout << "I am trying to read" << std::endl;
     read_command(readResp, payloadRead, 5, 10);
 
+    // Set data components
+    write_command(setDataComp, dataCompSet, 4);
+
+    // read heading pitch and roll data
+    write_command(getData, NULL, 0);
+    std::cout << "I am trying to read" << std::endl;
+    read_command(readResp, payloadRead, 16, 21);
 
     return 0;
 }

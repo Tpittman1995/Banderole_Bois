@@ -43,11 +43,15 @@ int initCal() {
     Command setDataComp = kSetDataComponents;
     Command getData = kGetData;
 
+    // Commands to getModInfo
+    Command getMod = kGetModInfo;
+
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
     uint8_t payloadRead[4096];     // read function populates with response payload
 
     int success = 0;                                    // success variale for error handling
+
 
     // set functional mode to compas mode
     write_command(SetFunctMode, functModePayload, 1);
@@ -227,7 +231,7 @@ int write_command(const Command cmd, const uint8_t *payload, const uint16_t payl
     for (int i = 0; i < 20; i++)
     {
         packetContents[i] = packet[i];
-        printf("%x\n", packetContents[i]);
+        //printf("%x\n", packetContents[i]);
     }
     delete[] packet;
 
