@@ -38,6 +38,8 @@
 #include <arpa/inet.h>
 
 #include "serial.h"
+#include <math.h>
+#include <bitset>
 
 // Define TraxMailbox class
 class TraxMailbox {
@@ -55,12 +57,15 @@ public:
     void abortCal();            // Send the abort calibration command
     int takePoint();            // Take cal point
     int getCalScore();          // Request cal score from TRAX and set calSucess
-    int getPosition(uint8_t data[16]);  // Request position data (heading, pitch, roll)
+    int getPosition();  // Request position data (heading, pitch, roll)
     int save();                 // Send save command
     int setDefaultSettings();   // Set TRAX settings back to defaults
 
     // Getters
     int getSampleCount();
+    float getHeading();
+    float getPitch();
+    float getRoll();
 
     // Setters
     void setSampleCount(int count);
@@ -112,10 +117,22 @@ private:
 
     serial::Serial serPort;  // Check port path matches if move systems
     int sampleCount;            // Variable to track the number of sample points taken
-    bool calSuccess;
+    bool calSuccess;            // Variable to track success of calibration
+    float heading;           // array to hold heading value
+    float pitch;             // array to hold pitch data
+    float roll;              // array to hold roll data
 
     int write_command(const Command cmd, const uint8_t *payload, const uint16_t payload_len);
     int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length, const size_t responseSize);
     uint16_t crc16(uint8_t *data, int length);
     float ntohf(float data);
+
 };
+
+float createFloat(uint8_t data[]);
+void splitCalScore(uint8_t data[], uint8_t * AccelScore, uint8_t *MagScore);
+float shrinkMantissa(float mantissa);
+float BitToDec(int data[], int length);
+void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *roll);
+int combine(int a, int b);
+int combineData(uint8_t data[]);
