@@ -111,7 +111,7 @@ int main(void) {
 //    read_command(readResp, payloadRead, 16, 21);
 
     // Test procedure for TraxMailbox
-    int success = 1;
+    int success = -1;
     TraxMailbox trax;
 
     success = trax.initCal();

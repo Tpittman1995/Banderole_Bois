@@ -46,13 +46,15 @@ public:
         serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80))
     {
         this->sampleCount = 0;
+        this->calSuccess = false;
     }
     ~TraxMailbox();
 
-    int initCal();              // et TRAX settings in order to calibrate
+    int initCal();              // Set TRAX settings in order to calibrate
     void startCal();            // Send the start calibration command
     void abortCal();            // Send the abort calibration command
     int takePoint();            // Take cal point
+    int getCalScore();          // Request cal score from TRAX and set calSucess
     int getPosition(uint8_t data[16]);  // Request position data (heading, pitch, roll)
     int save();                 // Send save command
     int setDefaultSettings();   // Set TRAX settings back to defaults
@@ -109,6 +111,7 @@ private:
     };
     serial::Serial serPort;  // Check port path matches if move systems
     int sampleCount;            // Variable to track the number of sample points taken
+    bool calSuccess;
 
     int write_command(const Command cmd, const uint8_t *payload, const uint16_t payload_len);
     int read_command(Command &resp, uint8_t *payload, const uint16_t max_payload_length, const size_t responseSize);

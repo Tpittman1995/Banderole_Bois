@@ -156,11 +156,11 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     memcpy(payload, &data[3], packet_len - 5);
 
     // print what was just read / check if everything got put into the propper variables
-    printf("%x \n", resp);
-    for(int i = 0; i < packet_len - 5; i++) {
-        printf("%x \n", payload[i]);
-    }
-    printf("%x \n", crc);
+//    printf("%x \n", resp);
+//    for(int i = 0; i < packet_len - 5; i++) {
+//        printf("%x \n", payload[i]);
+//    }
+//    printf("%x \n", crc);
 
     return 0;
 }
@@ -418,11 +418,25 @@ int TraxMailbox::takePoint() {
         this->sampleCount++;
         if(this->sampleCount == 18) {
             // All 18 calibration points taken so read for cal score
-            // call function to read cal scores?
+            success = getCalScore();
         }
     } else {
         success = -1;   // cal point was not taken
     }
+
+    return success;
+}
+
+int TraxMailbox::getCalScore(){
+    Command calScore = kUserCalScore;      // get call score command
+
+    Command readResp;                      // read populates with frame ID of message just read
+    uint8_t payloadRead[4096];             // read function populates with response payload
+
+    int success = 0;
+
+    success = read_command(readResp, payloadRead, 6, 11);
+    // call travis function and check if call scores are good or not then set calSuccess
 
     return success;
 }
