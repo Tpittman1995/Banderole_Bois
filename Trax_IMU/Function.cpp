@@ -75,7 +75,7 @@ float createFloat(uint8_t data[])
     std::bitset<8> byte3(data[2]);
     std::bitset<8> byte4(data[3]);
 
-    int s = 0; //byte4[7];
+    int s = byte4[7];
 
     int exponentBits[8] = {byte3[7], byte4[0], byte4[1], byte4[2], byte4[3], byte4[4], byte4[5], byte4[6]};
     float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
@@ -104,17 +104,6 @@ float createFloat(uint8_t data[])
 }
 
 
-
-void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *roll)
-{
-    int a = 1;
-    //heading[] = {0,0,0,0}
-    //uint8_t pitch[4] = {0,0,0,0};
-    //uint8_t roll[4] = {0,0,0,0};
-    while(a < 15)
-    {
-        switch (data[a]) {
-        case 5:
 
 //void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *roll)
 //{
