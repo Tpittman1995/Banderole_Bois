@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <string>
+#include <stdlib.h>
+#include <bitset>
 
 //#include <libserialport.h>  // Found serial library online
 

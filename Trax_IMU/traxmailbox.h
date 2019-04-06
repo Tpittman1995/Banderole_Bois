@@ -41,7 +41,7 @@
 // Define TraxMailbox class
 class TraxMailbox {
 public:
-   TraxMailbox(serial::Serial serPort = serial::Serial("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80)); // Open serial port connected to TRAX - /ttyACM0
+   TraxMailbox();// Open serial port connected to TRAX - /ttyACM0
 
 private:
     enum Command : uint8_t
@@ -87,5 +87,5 @@ private:
         kGetMagThruthMethod = 0x78,
         kGetMagThruthMethodResp = 0x79
     };
-    serial::Serial serPort;
+    //serial::Serial serPort = serial::Serial("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80));
 };

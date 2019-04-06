@@ -1,8 +1,11 @@
 #include "trax.h"
 #include "serial.h"
+#include "Function.h"
 
 
 int main(void) {
+    uint8_t data[4] = {0xF3, 0xa7, 0x5e, 0xdd};
+    createFloat(data);
     Command test_write = kPowerDown;
     Command test_read = kPowerDownDone;
     Command getModInfo = kGetModInfo;
