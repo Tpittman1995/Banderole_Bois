@@ -17,6 +17,18 @@ int TraxMailbox::getSampleCount() {
     return this->sampleCount;
 }
 
+float TraxMailbox::getHeading() {
+    return this->heading;
+}
+
+float TraxMailbox::getPitch() {
+    return this->pitch;
+}
+
+float TraxMailbox::getRoll() {
+    return this->roll;
+}
+
 /**
 * setter for sample count
 * @param: count value to set sampleCount to
@@ -414,7 +426,7 @@ int TraxMailbox::takePoint() {
     write_command(takeCalPoint, NULL, 0);
     success = read_command(readResp, payloadRead, 1, 6);  // Ensure cal point was taken
     // Read back user cal sample count and ensure it is one higher then the last point taken
-    if(payloadRead[0] == (this->sampleCount + 1)) {
+    if((int)payloadRead[0] == (this->sampleCount + 1)) {
         this->sampleCount++;
         if(this->sampleCount == 18) {
             // All 18 calibration points taken so read for cal score
@@ -431,12 +443,25 @@ int TraxMailbox::getCalScore(){
     Command calScore = kUserCalScore;      // get call score command
 
     Command readResp;                      // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];             // read function populates with response payload
+    uint8_t payloadRead[24];             // read function populates with response payload
 
     int success = 0;
 
     success = read_command(readResp, payloadRead, 6, 11);
-    // call travis function and check if call scores are good or not then set calSuccess
+    uint8_t accelScore[4];
+    uint8_t magScore[4];
+    // call split cal score funtion to parse cal score
+    splitCalScore(payloadRead, accelScore, magScore);
+    float accelFloat = createFloat(accelScore);     // convert accel score data to float
+    float magFloat = createFloat(magScore);         // convert mag score data to float
+
+    // update calSuccess bool based on success of calibration
+    if(accelFloat <= 1.0 && magFloat <= 1.0) {
+        this->calSuccess = true;
+    }
+    else {
+        this->calSuccess = false;
+    }
 
     return success;
 }
@@ -448,25 +473,31 @@ int TraxMailbox::getCalScore(){
   *@return: 0 upon success, -1 upon failure
   *
  */
-int TraxMailbox::getPosition(uint8_t data[16]) {
+int TraxMailbox::getPosition() {
 
     // Commands to set and get data components
     Command getData = kGetData;
 
     Command readResp;                      // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];             // read function populates with response payload
+    uint8_t payloadRead[16];             // read function populates with response payload
 
     int success = 0;       // variable to track success of data read
 
     // request heading, pitch and roll data from TRAX
     write_command(getData, NULL, 0);
     success = read_command(readResp, payloadRead, 16, 21);
-    // fill in data with payload (heading, pitch, roll)
-    for(int i = 0; i < 16; i++) {
-        data[i] = payloadRead[i];
+    // if read works, parse data
+    if(success != -1) {
+        // Create arrays to hold hex heading pitch and roll data
+        uint8_t heading[4];
+        uint8_t pitch[4];
+        uint8_t roll[4];
+
+        splitGetData(payloadRead, heading, pitch, roll);  // get heading, pitch and roll from payload
+        this->heading = createFloat(heading);             // update heading value
+        this->pitch = createFloat(pitch);                 // update pitch value
+        this->roll = createFloat(roll);                   // update roll value
     }
-    // populate data array with heading, pitch and roll data
-    // ******** call Travis's parseing function here *********
 
     return success;
 }
@@ -523,4 +554,176 @@ int TraxMailbox::setDefaultSettings() {
     }
 
     return success;
+}
+
+//float createFloat(uint8_t data[])
+//{
+//    std::bitset<8> byte1(data[0]); //putting the data recieved into 8 bit arrays
+//    std::bitset<8> byte2(data[1]);
+//    std::bitset<8> byte3(data[2]);
+//    std::bitset<8> byte4(data[3]);
+
+//    int s = byte4[7];
+
+//    int exponentBits[8] = {byte3[7], byte4[0], byte4[1], byte4[2], byte4[3], byte4[4], byte4[5], byte4[6]};
+//    float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
+//    //std::cout << exponent << std::endl;
+
+//    int mantissaBits[23] = {byte1[0],byte1[1],byte1[2],byte1[3],byte1[4],byte1[5],byte1[6],byte1[7],byte2[0],byte2[1],byte2[2],byte2[3],byte2[4],byte2[5],byte2[6],byte2[7],byte3[0],byte3[1],byte3[2],byte3[3],byte3[4],byte3[5],byte3[6]};
+//    float mantissa = BitToDec(mantissaBits, 23);
+//    //std::cout << mantissa << std::endl;
+//    float OnePointMantissa = shrinkMantissa(mantissa); //used to get mantissa down to a value less than 1
+//    //std::cout << OnePointMantissa << std::endl;
+
+//    float actualFloatValue = ((2*(exponent - 127))*(OnePointMantissa));
+
+//    if(s)
+//    {
+//        actualFloatValue = (actualFloatValue*(-1));
+//    }
+//    //std::cout << byte1[1] << std::endl;
+
+
+//    //std::cout << actualFloatValue << std::endl;
+
+//    return actualFloatValue;
+//    //printf("%d\n", s);
+//    //float number = ((-1)(data[0]))
+//}
+
+float createFloat(uint8_t data[])
+{
+    std::bitset<8> byte1(data[0]); //putting the data recieved into 8 bit arrays
+    std::bitset<8> byte2(data[1]);
+    std::bitset<8> byte3(data[2]);
+    std::bitset<8> byte4(data[3]);
+
+    int s = byte1[7];
+
+    int exponentBits[8] = {byte2[7], byte1[0], byte1[1], byte1[2], byte1[3], byte1[4], byte1[5], byte1[6]};
+    float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
+    //std::cout << exponent << std::endl;
+
+    int mantissaBits[23] = {byte4[0],byte4[1],byte4[2],byte4[3],byte4[4],byte4[5],byte4[6],byte4[7],byte3[0],byte3[1],byte3[2],byte3[3],byte3[4],byte3[5],byte3[6],byte3[7],byte2[0],byte2[1],byte2[2],byte2[3],byte2[4],byte2[5],byte2[6]};
+    float mantissa = BitToDec(mantissaBits, 23);
+    //std::cout << mantissa << std::endl;
+    float OnePointMantissa = shrinkMantissa(mantissa); //used to get mantissa down to a value less than 1
+    //std::cout << OnePointMantissa << std::endl;
+
+    float actualFloatValue = ((2*(exponent - 127))*(OnePointMantissa));
+
+    if(s)
+    {
+        actualFloatValue = (actualFloatValue*(-1));
+    }
+    //std::cout << byte1[1] << std::endl;
+
+
+    //std::cout << actualFloatValue << std::endl;
+
+    return actualFloatValue;
+    //printf("%d\n", s);
+    //float number = ((-1)(data[0]))
+}
+
+
+float shrinkMantissa(float mantissa)
+{
+    float number = 0.0;
+    while(mantissa > 1)
+    {
+        mantissa = (mantissa/10);
+    }
+    number = 1 + mantissa;
+    return number;
+}
+
+void splitCalScore(uint8_t data[], uint8_t * AccelScore, uint8_t *MagScore)
+{
+    int a = 0;
+    for(int i = 0; i < 4; i++)
+    {
+        MagScore[i] = data[a];
+        a++;
+    }
+    a = 8;
+    for(int i = 0; i < 4; i++)
+    {
+        AccelScore[i] = data[a];
+        a++;
+    }
+}
+
+
+float BitToDec(int data[], int length)
+{
+    float sum = 0;
+    for(int i = 0; i < length; i++)
+    {
+        sum += (float)(pow(2, i)*data[i]);
+    }
+
+    return sum;
+}
+
+
+void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *roll)
+{
+    int a = 1;
+    //heading[] = {0,0,0,0}
+    //uint8_t pitch[4] = {0,0,0,0};
+    //uint8_t roll[4] = {0,0,0,0};
+    while(a < 15)
+    {
+        switch (data[a]) {
+        case 5:
+
+
+            for(int i = 0; i < 4; i++)
+            {
+                a++;
+                heading[i] = data[a];
+            }
+            a++;
+            break;
+        case 24:
+
+            for(int i = 0; i < 4; i++)
+            {
+                a++;
+                pitch[i] = data[a];
+
+            }
+            a++;
+            break;
+
+        case 25:
+
+            for(int i = 0; i < 4; i++)
+            {
+                a++;
+                roll[i] = data[a];
+
+            }
+            a++;
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+int combine(int a, int b) {
+   int times = 1;
+   while (times <= b)
+      times *= 10;
+   return a*times + b;
+}
+
+int combineData(uint8_t data[])
+{
+    int first = combine(data[0],data[1]);
+    int second = combine(data[2], data[3]);
+    int final = combine(first, second);
+    return final;
 }

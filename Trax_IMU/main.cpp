@@ -117,5 +117,12 @@ int main(void) {
     success = trax.initCal();
     std::cout << success << std::endl;
 
+    success = trax.getPosition();
+    std::cout << success << std::endl;
+
+    std::cout << trax.getHeading() << std::endl;
+    std::cout << trax.getPitch() << std::endl;
+    std::cout << trax.getRoll() << std::endl;
+
     return 0;
 }
