@@ -21,7 +21,6 @@
 //#include <stdint.h>
 //#include <sys/ioctl.h>
 //#include <string>
->>>>>>> 84f3b6675ad110dd3b2137df3d39118bd053b2c2
 
 ////#include <libserialport.h>  // Found serial library online
 
