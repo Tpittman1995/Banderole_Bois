@@ -114,12 +114,17 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     /*
     * Read the packet header (packet length stored as uint16_t)
     */
-    uint8_t data[4096];
+    uint8_t data[4096] = {3};
 //    if (serial_port.Read(data, 2) != 2)
 //    {
 //        return -1;
 //    }
+    std::cout << "pre test" << std::endl;
+
     size_t test = serPort.read(data, responseSize);
+
+     printf("%x \n", data[0]);
+     printf("%x \n", data[1]);
 
     uint16_t packet_len;
     memcpy(&packet_len, &data, 2);
@@ -128,8 +133,10 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     /*
     * Packets are limited to 4096 bytes in length.
     */
+
     if (packet_len > 4096)
     {
+        std::cout << "fail 1" << std::endl;
         return -1;
     }
 
@@ -144,12 +151,15 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     /*
     * Calculate and check the crc16 on the packet.
     */
+    std::cout << "pre calculate and check" << std::endl;
+
     uint16_t crc;
     memcpy(&crc, &(data[packet_len - 2]), 2);
     crc = ntohs(crc);
 
     if (crc != crc16(data, packet_len - 2))
     {
+        std::cout << "fail 2" << std::endl;
         return -1;
     }
 
@@ -158,14 +168,18 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     */
     if (packet_len - 5 > max_payload_length)
     {
+        std::cout << "fail 3" << std::endl;
         return -1;
     }
 
     /*
     * Copy the fields into the user-provided buffers.
     */
+    std::cout << "memcpy" << std::endl;
     memcpy(&resp, &data[2], 1);
+    std::cout << &data[3] << std::endl;
     memcpy(payload, &data[3], packet_len - 5);
+    std::cout << "Post" << std::endl;
 
     // print what was just read / check if everything got put into the propper variables
 //    printf("%x \n", resp);
@@ -173,6 +187,7 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
 //        printf("%x \n", payload[i]);
 //    }
 //    printf("%x \n", crc);
+    std::cout << "END**********************************************" << std::endl;
 
     return 0;
 }
@@ -305,9 +320,22 @@ int TraxMailbox::initCal() {
     // Commands to getModInfo
     Command getMod = kGetModInfo;
 
+    // Commands to set aquisition modes
+    Command setAcq = kSetAcqParams;
+    Command checkAcq = kSetAcqParamsDone;
+    uint8_t setAcqPayloadSet[10] = {0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 ,0x0, 0x0};
+    Command getAcq = kGetAcqParams;
+    uint8_t payloadgetAcq[10] = {0};
+
+    // Commands to set heading, pitch and roll output during calibration off
+    uint8_t HPRPayloadSet[2] = {0x10, 0x0};
+
+    // command to stop continious mode
+    Command stopCont = kStopContinuousMode;
+
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];     // read function populates with response payload
+    uint8_t payloadRead[1] = {0};     // read function populates with response payload
 
     int success = 0;                                    // success variale for error handling
 
@@ -357,6 +385,27 @@ int TraxMailbox::initCal() {
     // Set data components to heading, pitch, roll
     write_command(setDataComp, dataCompSet, 4);
 
+    // Set to polled mode
+    write_command(setAcq, setAcqPayloadSet, 10);
+    success = read_command(readResp, payloadRead, 0, 5);
+    if (readResp != checkAcq) {
+        success = -1;
+    }
+
+    // set HPR during call off
+    write_command(setConfig, HPRPayloadSet, 2);
+    success = read_command(readResp, payloadRead, 0, 5);  // Ensure setConfig command finished
+    if(readResp != checkConfig) {
+        success = -1;
+    }
+
+    // turn off cont mode
+    write_command(stopCont, NULL, 0);
+
+    // DEBUG ****
+//    uint8_t payloadTest[4096];
+//    read_command(readResp, payloadTest, 100, 105);
+
     return success;
 }
 
@@ -370,15 +419,15 @@ int TraxMailbox::save() {
 
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];     // read function populates with response payload
+    uint8_t payloadRead[2] = {0};     // read function populates with response payload
 
     int success = 0;
 
     // Send save command
     write_command(save, NULL, 0);
-    read_command(readResp, payloadRead, 1, 6);
+    read_command(readResp, payloadRead, 2, 7);
     // if save command sends back error, return -1
-    if(payloadRead[0] == -1) {
+    if(payloadRead[0] == 1) {
         success = -1;
     }
     return success;
@@ -392,8 +441,20 @@ void TraxMailbox::startCal() {
     // payload to start cal in mag and accel mode
     uint8_t startCalPayload[4] = {0x0, 0x0, 0x0, 0x6E};
 
+    uint8_t payloadRead[4] = {0};             // read function populates with response payload
+    Command readResp;                       // read populates with frame ID of message just read
+
+    uint8_t payloadTest[4096] = {0};
+
     // write start cal
     write_command(beginCal, startCalPayload, 4);
+
+    read_command(readResp, payloadRead, 4, 9);  // (Should have payload of 4 and total length of 9)
+//    read_command(readResp, payloadTest, 100, 105);
+
+    //read_command(readResp, payloadRead, 4, 9); // testing
+
+    // add in error checking if needed
 }
 
 /**
@@ -418,15 +479,24 @@ int TraxMailbox::takePoint() {
     Command getSampleCount = kUserCalSampleCount;
 
     Command readResp;                       // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];             // read function populates with response payload
+    uint8_t payloadRead[4] = {0};             // read function populates with response payload
 
+    int readFlag = 0;
     int success = 0;
 
     // write command to take calibration point
     write_command(takeCalPoint, NULL, 0);
-    success = read_command(readResp, payloadRead, 1, 6);  // Ensure cal point was taken
+
+    // keep reading reponses from TRAX until we get a cal count back - deals with stability issues when taking cal point
+    while(readResp != getSampleCount || readFlag == 25) {
+        success = read_command(readResp, payloadRead, 4, 9);  // Ensure cal point was taken
+        readFlag++;
+    }
+
+    printf("%x \n", payloadRead[3]);
+
     // Read back user cal sample count and ensure it is one higher then the last point taken
-    if((int)payloadRead[0] == (this->sampleCount + 1)) {
+    if((int)payloadRead[3] == (this->sampleCount + 1)) {
         this->sampleCount++;
         if(this->sampleCount == 18) {
             // All 18 calibration points taken so read for cal score
@@ -443,11 +513,12 @@ int TraxMailbox::getCalScore(){
     Command calScore = kUserCalScore;      // get call score command
 
     Command readResp;                      // read populates with frame ID of message just read
-    uint8_t payloadRead[24];             // read function populates with response payload
+    uint8_t payloadRead[24] = {0};             // read function populates with response payload
 
     int success = 0;
 
-    success = read_command(readResp, payloadRead, 6, 11);
+    success = read_command(readResp, payloadRead, 24, 29);   // ** LOOK AT THIS LATER - 6 should be 24? ***
+
     uint8_t accelScore[4];
     uint8_t magScore[4];
     // call split cal score funtion to parse cal score
@@ -479,7 +550,7 @@ int TraxMailbox::getPosition() {
     Command getData = kGetData;
 
     Command readResp;                      // read populates with frame ID of message just read
-    uint8_t payloadRead[16];             // read function populates with response payload
+    uint8_t payloadRead[16] = {0};             // read function populates with response payload
 
     int success = 0;       // variable to track success of data read
 
@@ -494,6 +565,17 @@ int TraxMailbox::getPosition() {
         uint8_t roll[4];
 
         splitGetData(payloadRead, heading, pitch, roll);  // get heading, pitch and roll from payload
+
+        printf("%x \n", heading[0]);
+        printf("%x \n", heading[1]);
+        printf("%x \n", heading[2]);
+        printf("%x \n", heading[3]);
+
+        printf("%x \n", pitch[0]);
+        printf("%x \n", pitch[1]);
+        printf("%x \n", pitch[2]);
+        printf("%x \n", pitch[3]);
+
         this->heading = createFloat(heading);             // update heading value
         this->pitch = createFloat(pitch);                 // update pitch value
         this->roll = createFloat(roll);                   // update roll value
@@ -526,7 +608,8 @@ int TraxMailbox::setDefaultSettings() {
 
     // Structures for read to fill with data
     Command readResp;         // read populates with frame ID of message just read
-    uint8_t payloadRead[4096];     // read function populates with response payload
+    uint8_t payloadRead[1] = {0};     // read function populates with response payload
+    uint8_t payloadReadTest[2] = {0};     // read function populates with response payload
 
     int success = 0;                                    // success variale for error handling
 
@@ -545,97 +628,67 @@ int TraxMailbox::setDefaultSettings() {
         success = -1;
     }
 
+//    serPort.close();
+//    serPort.open();
+
+    Command readResp2 = kGetModInfo;
     // Save settings to non volatile memory
     write_command(save, NULL, 0);
-    read_command(readResp, payloadRead, 1, 6);
+    success = read_command(readResp2, payloadReadTest, 2, 7);
+
     // if save command sends back error, return -1
-    if(payloadRead[0] == -1) {
+    if(payloadReadTest[1] == 1) {
         success = -1;
     }
 
     return success;
 }
 
-//float createFloat(uint8_t data[])
-//{
-//    std::bitset<8> byte1(data[0]); //putting the data recieved into 8 bit arrays
-//    std::bitset<8> byte2(data[1]);
-//    std::bitset<8> byte3(data[2]);
-//    std::bitset<8> byte4(data[3]);
-
-//    int s = byte4[7];
-
-//    int exponentBits[8] = {byte3[7], byte4[0], byte4[1], byte4[2], byte4[3], byte4[4], byte4[5], byte4[6]};
-//    float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
-//    //std::cout << exponent << std::endl;
-
-//    int mantissaBits[23] = {byte1[0],byte1[1],byte1[2],byte1[3],byte1[4],byte1[5],byte1[6],byte1[7],byte2[0],byte2[1],byte2[2],byte2[3],byte2[4],byte2[5],byte2[6],byte2[7],byte3[0],byte3[1],byte3[2],byte3[3],byte3[4],byte3[5],byte3[6]};
-//    float mantissa = BitToDec(mantissaBits, 23);
-//    //std::cout << mantissa << std::endl;
-//    float OnePointMantissa = shrinkMantissa(mantissa); //used to get mantissa down to a value less than 1
-//    //std::cout << OnePointMantissa << std::endl;
-
-//    float actualFloatValue = ((2*(exponent - 127))*(OnePointMantissa));
-
-//    if(s)
-//    {
-//        actualFloatValue = (actualFloatValue*(-1));
-//    }
-//    //std::cout << byte1[1] << std::endl;
-
-
-//    //std::cout << actualFloatValue << std::endl;
-
-//    return actualFloatValue;
-//    //printf("%d\n", s);
-//    //float number = ((-1)(data[0]))
-//}
-
 float createFloat(uint8_t data[])
 {
-    std::bitset<8> byte1(data[0]); //putting the data recieved into 8 bit arrays
-    std::bitset<8> byte2(data[1]);
-    std::bitset<8> byte3(data[2]);
-    std::bitset<8> byte4(data[3]);
+   std::bitset<8> byte1(data[0]); //putting the data recieved into 8 bit arrays
+   std::bitset<8> byte2(data[1]);
+   std::bitset<8> byte3(data[2]);
+   std::bitset<8> byte4(data[3]);
 
-    int s = byte1[7];
+   int s = byte1[7];
 
-    int exponentBits[8] = {byte2[7], byte1[0], byte1[1], byte1[2], byte1[3], byte1[4], byte1[5], byte1[6]};
-    float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
-    //std::cout << exponent << std::endl;
+   int exponentBits[8] = {byte2[7], byte1[0], byte1[1], byte1[2], byte1[3], byte1[4], byte1[5], byte1[6]};
+   float exponent = BitToDec(exponentBits, 8); //used to convert from bits to a decimal value
+   //std::cout << exponent << std::endl;
 
-    int mantissaBits[23] = {byte4[0],byte4[1],byte4[2],byte4[3],byte4[4],byte4[5],byte4[6],byte4[7],byte3[0],byte3[1],byte3[2],byte3[3],byte3[4],byte3[5],byte3[6],byte3[7],byte2[0],byte2[1],byte2[2],byte2[3],byte2[4],byte2[5],byte2[6]};
-    float mantissa = BitToDec(mantissaBits, 23);
-    //std::cout << mantissa << std::endl;
-    float OnePointMantissa = shrinkMantissa(mantissa); //used to get mantissa down to a value less than 1
-    //std::cout << OnePointMantissa << std::endl;
+   int mantissaBits[23] = {byte4[0],byte4[1],byte4[2],byte4[3],byte4[4],byte4[5],byte4[6],byte4[7],byte3[0],byte3[1],byte3[2],byte3[3],byte3[4],byte3[5],byte3[6],byte3[7],byte2[0],byte2[1],byte2[2],byte2[3],byte2[4],byte2[5],byte2[6]};
+   float mantissa = createMantissa(mantissaBits);
+   //std::cout << mantissa << std::endl;
+   //float OnePointMantissa = shrinkMantissa(mantissa); //used to get mantissa down to a value less than 1
+   //std::cout << OnePointMantissa << std::endl;
 
-    float actualFloatValue = ((2*(exponent - 127))*(OnePointMantissa));
+   float actualFloatValue = ((pow(2,(exponent - 127)))*(mantissa));
 
-    if(s)
-    {
-        actualFloatValue = (actualFloatValue*(-1));
-    }
-    //std::cout << byte1[1] << std::endl;
+   if(s)
+   {
+       actualFloatValue = (actualFloatValue*(-1));
+   }
+   //std::cout << byte1[1] << std::endl;
 
 
-    //std::cout << actualFloatValue << std::endl;
+   //std::cout << actualFloatValue << std::endl;
 
-    return actualFloatValue;
-    //printf("%d\n", s);
-    //float number = ((-1)(data[0]))
+   return actualFloatValue;
+   //printf("%d\n", s);
+   //float number = ((-1)(data[0]))
 }
 
 
-float shrinkMantissa(float mantissa)
+float createMantissa(int *mantissa)
 {
-    float number = 0.0;
-    while(mantissa > 1)
-    {
-        mantissa = (mantissa/10);
-    }
-    number = 1 + mantissa;
-    return number;
+   float number = 0.000000000;
+   for(int i = 0; i < 23; i++)
+   {
+       number += mantissa[22-i]*(1/pow(2, i+1));
+   }
+   number += 1;
+   return number;
 }
 
 void splitCalScore(uint8_t data[], uint8_t * AccelScore, uint8_t *MagScore)

@@ -41,11 +41,18 @@
 #include <math.h>
 #include <bitset>
 
+// testing
+#include <unistd.h>
+
+using std::cout;
+using std::endl;
+using std::string;
+
 // Define TraxMailbox class
 class TraxMailbox {
 public:
     TraxMailbox() :
-        serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(80))
+        serPort("/dev/ttyUSB0", 38400, serial::Timeout::simpleTimeout(150))
     {
         this->sampleCount = 0;
         this->calSuccess = false;
@@ -57,7 +64,7 @@ public:
     void abortCal();            // Send the abort calibration command
     int takePoint();            // Take cal point
     int getCalScore();          // Request cal score from TRAX and set calSucess
-    int getPosition();  // Request position data (heading, pitch, roll)
+    int getPosition();          // Request position data (heading, pitch, roll)
     int save();                 // Send save command
     int setDefaultSettings();   // Set TRAX settings back to defaults
 
@@ -136,3 +143,4 @@ float BitToDec(int data[], int length);
 void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *roll);
 int combine(int a, int b);
 int combineData(uint8_t data[]);
+float createMantissa(int *mantissa);
