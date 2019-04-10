@@ -5,7 +5,7 @@
 
 int main(void) {
 
-    // ****** Test procedure for TraxMailbox ************
+    // ******** Test procedure for TraxMailbox ************ //
     int success = 8;
     TraxMailbox trax;
 
@@ -17,15 +17,6 @@ int main(void) {
     trax.startCal();
     std::cout << "start success" << std::endl;
 
-//    success = 7;
-//    success = trax.setDefaultSettings();
-//    std::cout << "init success = " << success << std::endl;
-
-//    success = trax.initCal();
-//    std::cout << success << std::endl;
-
-//    //success = -1;
-//    trax.startCal();
 
 //    success = 9;
     success = trax.takePoint();
@@ -65,19 +56,10 @@ int main(void) {
     success = trax.takePoint();
 //    std::cout << success << std::endl;
 
-//    success = 10;
-//    success = trax.getPosition();
-//    std::cout << "Get position = " << success << std::endl;
-
     //trax.abortCal();
 
-
-//    success = trax.getPosition();
-//    std::cout << success << std::endl;
-
-//    std::cout << trax.getHeading() << std::endl;
-//    std::cout << trax.getPitch() << std::endl;
-//    std::cout << trax.getRoll() << std::endl;
+    // ******************* Test of manual calibratino ***************** //
+    //manualCal();
 
     return 0;
 }

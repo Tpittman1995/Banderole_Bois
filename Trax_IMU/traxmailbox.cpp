@@ -515,12 +515,19 @@ int TraxMailbox::getCalScore(){
     Command readResp;                      // read populates with frame ID of message just read
     uint8_t payloadRead[24] = {0};             // read function populates with response payload
 
+    int readFlag = 0;       // flag to track how many times we have tried to read cal score
     int success = 0;
 
-    success = read_command(readResp, payloadRead, 24, 29);   // ** LOOK AT THIS LATER - 6 should be 24? ***
+    // Read from TRAX until we recieve a cal score or we read 25 times with no response
+    while(readResp != calScore || readFlag == 25) {
+        success = read_command(readResp, payloadRead, 24, 29);
+        readFlag++;
+    }
 
+    // define arrays to fill with accel and mag cal scores
     uint8_t accelScore[4];
     uint8_t magScore[4];
+
     // call split cal score funtion to parse cal score
     splitCalScore(payloadRead, accelScore, magScore);
     float accelFloat = createFloat(accelScore);     // convert accel score data to float
@@ -779,4 +786,35 @@ int combineData(uint8_t data[])
     int second = combine(data[2], data[3]);
     int final = combine(first, second);
     return final;
+}
+
+// function to do a manual calibration - prompts user when to take cal points
+void manualCal() {
+    string tempStr;
+    TraxMailbox trax;
+
+    int success = 1;
+
+    success = trax.initCal();
+    success = trax.startCal();
+
+    if(success = 0) {
+        while(trax.getSampleCount() < 18) {
+            cout << "Move the table to the next calibration position and click enter to take the next point" << endl;
+            if (cin.get() == '\n') {
+                trax.takePoint();
+            }
+            else {
+                cout << "Please only press enter when ready to take next point" << endl;
+            }
+            cout << trax.getSampleCount() << endl;
+        }
+        if (trax.getCalScore() == true) {
+            cout << "Calibraton completed successfully!" << endl;
+        } else {
+            cout << "Calibration failed, please try again" << endl;
+        }
+    } else {
+        cout << "failed in initCal or startCal" << endl;
+    }
 }

@@ -46,6 +46,7 @@
 
 using std::cout;
 using std::endl;
+using std::cin;
 using std::string;
 
 // Define TraxMailbox class
@@ -144,3 +145,5 @@ void splitGetData(uint8_t data[], uint8_t *heading, uint8_t *pitch, uint8_t *rol
 int combine(int a, int b);
 int combineData(uint8_t data[]);
 float createMantissa(int *mantissa);
+
+void manualCal();      // function to do a manual calibration - prompts user when to take cal points
