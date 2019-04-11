@@ -1,4 +1,5 @@
 #include "traxmailbox.h"
+#include <unistd.h>
 
 
 /**
@@ -121,16 +122,15 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
 //    }
 
     size_t test = serPort.read(data, responseSize);
-    if(test == 0){
-        std::cout << "Why 0 Though" << std::endl;
+    std::cout << "Debug: Read Attempt 0" << std::endl;
+    int i = 1;
+    while (test == 0){
+        std::cout << "Debug: Re-reading Attempt " << i << std::endl;
+        usleep(1000000);
         test = serPort.read(data, responseSize);
-        test = serPort.read(data, responseSize);
-        test = serPort.read(data, responseSize);
-        test = serPort.read(data, responseSize);
+        i++;
     }
-    else{
-        std::cout << "Not 0" << std::endl;
-    }
+    std::cout << "Read In Size: " << test << std::endl;
     uint16_t packet_len;
     memcpy(&packet_len, &data, 2);
     packet_len = ntohs(packet_len);
@@ -141,7 +141,7 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
 
     if (packet_len > 4096)
     {
-        std::cout << "fail 1" << std::endl;
+        std::cout << "READ_COMMAND: Fail 1" << std::endl;
         return -1;
     }
 
@@ -163,7 +163,7 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
 
     if (crc != crc16(data, packet_len - 2))
     {
-        std::cout << "fail 2" << std::endl;
+        std::cout << "READ_COMMAND: Fail 2" << std::endl;
         return -1;
     }
 
@@ -172,18 +172,18 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
     */
     if (packet_len - 5 > max_payload_length)
     {
-        std::cout << "fail 3" << std::endl;
+        std::cout << "READ_COMMAND: Fail 3" << std::endl;
         return -1;
     }
 
     /*
     * Copy the fields into the user-provided buffers.
     */
-    std::cout << "memcpy" << std::endl;
+    std::cout << "READ_COMMAND: Memcpy Attempt" << std::endl;
     memcpy(&resp, &data[2], 1);
     std::cout << &data[3] << std::endl;
     memcpy(payload, &data[3], packet_len - 5);
-    std::cout << "Post" << std::endl;
+    std::cout << "READ_COMMAND: Post Memcpy" << std::endl;
 
     // print what was just read / check if everything got put into the propper variables
 //    printf("%x \n", resp);
@@ -191,7 +191,6 @@ int TraxMailbox::read_command(Command &resp, uint8_t *payload, const uint16_t ma
 //        printf("%x \n", payload[i]);
 //    }
 //    printf("%x \n", crc);
-    std::cout << "END**********************************************" << std::endl;
 
     return 0;
 }
@@ -490,8 +489,9 @@ int TraxMailbox::takePoint() {
     // write command to take calibration point
     write_command(takeCalPoint, NULL, 0);
 
-    success = read_command(readResp, payloadRead, 4, 9);  // Ensure cal point was taken
-
+    while(readResp != getSampleCount){
+        success = read_command(readResp, payloadRead, 4, 9);  // Ensure cal point was taken
+    }
     // Read back user cal sample count and ensure it is one higher then the last point taken
     if((int)payloadRead[3] == (this->sampleCount + 1)) {
         this->sampleCount++;
@@ -507,6 +507,7 @@ int TraxMailbox::takePoint() {
 }
 
 int TraxMailbox::getCalScore(){
+    std::cout << "Entering getCalScore" << std::endl;
     Command calScore = kUserCalScore;      // get call score command
 
     Command readResp;                      // read populates with frame ID of message just read
