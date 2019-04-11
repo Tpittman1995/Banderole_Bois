@@ -45,7 +45,6 @@
 //    }
 //}
 
-
 //float BitToDec(int data[], int length)
 //{
 //    float sum = 0;
